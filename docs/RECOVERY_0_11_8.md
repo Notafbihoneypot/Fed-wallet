@@ -1,0 +1,50 @@
+# Independent Wallet 0.11.8 recovery checkpoint
+
+**Historical checkpoint:** reconstruction and the signed development build are complete. This file records an earlier state; see VALIDATION.md for the current build results and remaining device-test limitations.
+
+This is a development checkpoint, not a release or an installable APK.
+
+## Current verified saved baseline
+
+The last published release remains 0.11.7-preview2, Android code 25, package app.independentwallet.android.syncpreview2. Its source archive is 746235 bytes, SHA256 82b8501ee734e948e8ba1edd2e79a19c23542c5093652b6c6b7110589266361e. The saved source was recovered and its archive CRC/SHA256 checked. The installer signing backup was also recovered separately. Never include the private key or its recovery/password file in public source or reports, and never regenerate/rotate the signing identity to work around this reset.
+
+Expected installer certificate SHA256: 01afd9a36efbb0d6573d8f12764164a14af3d99faa4a97ccfce45dff82cd52b5. The old Sync Preview package is separate and must be preserved.
+
+## What happened
+
+A previous 0.11.8 development tree and signed candidate were built in a temporary workspace. That workspace reset before the source/candidate were saved persistently. They are not available for release. Earlier compilation and test results are historical evidence for that lost tree, not fresh validation of this recovery tree. No user phone/wallet was accessed or wiped.
+
+The last lost candidate reported APK SHA256 cf3062747098aa8092c2ef719c8d51b5d16e46f4dba3197a0649d39521764afe and 55584568 bytes. Do not infer an available file from that hash or link a nonexistent APK. The earlier tree passed 106 Rust tests (1 isolated default-ignore), 150 Android host tests across 35 suites, assembly/bindings/native builds and lint without errors. These results must be rerun after reconstruction.
+
+Android execution was not completed successfully. The API36 AOSP emulator had network-stack/SystemUI failures before installation, then was installed with the candidate. Seven security cases ran: six failed while Android itself was locked (device-required Keystore correctly refused access); one metadata case passed. PIN/legacy migration, biometric crypto, real duress clearing and startup wipe recovery have not been demonstrated successfully. A second API30 image was being prepared when the reset occurred. Do not report those checks as passing.
+
+## Changes present in this recovery tree
+
+Only the receipt-event patch is restored so far. Publication emits a receiptToOpen event once for accepted/uncertain outcomes; displaying it consumes that event while retaining payment ID, submission status and durable transaction details. The dashboard no longer watches lastPaymentId/submission as a trigger, avoiding reopening when the composition is recreated. Two host regression cases cover retention, repeat consumption, unchanged-tip copies and stale acknowledgments. These newly restored sources have not been compiled/tested in the reset environment. Cargo/Android versions remain the recovered baseline; the archive name identifies recovery work, not a released version.
+
+## Authorized remaining scope
+
+1. Simplify navigation: remove Original/Mainnet main-screen tabs. New setup is Mainnet and offers software creation, 16-word Polyseed/25-word seed import, or Keystone. Keep old test-wallet recovery accessible in Settings; never delete or overwrite legacy data to simplify the UI.
+2. Multiple independent named wallets (bounded list, e.g. 50), stable validated UUID-style IDs. Preserve both legacy IDs, filenames, aliases and serialized ordinals. Separate vaults/setups and remembered consent; reject duplicate primary-address imports to prevent duplicate spend journals. Switching closes the old owner. User-added nodes remain limited to five with explicit selection and no defaults/failover.
+3. Settings recovery phrase and wallet-key viewing requires fresh authentication and a live backup-verified native owner. Native export can reveal software spending keys only; view-only/Keystone must never acquire/export one. Keep the 60-second display timeout, secure window and owner revocation. JVM strings cannot be reliably zeroized. Preserve normal explicit clipboard-copy retention.
+4. Optional app PIN (8–12 ASCII digits, no default/reset bypass). The previous design used maintained RustCrypto argon2 0.5.3, Argon2id v0x13, 64MiB/3 iterations/one lane/32-byte output and a 16-byte salt, plus a non-exportable unlocked-device-required Android Keystore HMAC key. AES-GCM wraps a random 32-byte root; use separately scoped wallet/setup derivation domains and IWE2 purpose/slot AAD. Retain salt/root on PIN changes so existing vaults and biometric wrappers remain readable. PinEnvelope must use 12-byte IVs. These details are a design checkpoint, not implemented code in this recovery tree.
+5. First configuration requires fresh Android device credential authentication; later security changes require normal app PIN. Capture an owner-bound 60-second SecurityAuthorization grant before queueing I/O. Lock/new unlock/expiry must revoke it, and final commits must share the revocation monitor so delayed work cannot resurrect an unlocked root. Wipe temporary byte arrays on cancellation/failure as well as success. Persist bounded incorrect-PIN delays; handle reboot/elapsed-clock rollback. Recognize configured duress before the normal lockout.
+6. Optional strong biometric root wrapping must use a per-use Keystore CryptoObject, not callback approval alone, with enrollment invalidation and normal-PIN fallback. Add USE_BIOMETRIC normal manifest permission. Do not promise blanket US legal protection for either unlock method.
+7. Legacy IWE1 wallets and setup DEKs migrate atomically only after authentication. Commit recoverable PIN wrapping first, preserve setup payload/backup answers, round-trip every conversion, and retain all old aliases until all saved slots validate. Resume interrupted migration with normal PIN plus fresh Android auth. An unrelated damaged legacy slot must not block a healthy wallet's recovery. Existing IWE2 wallet/setup files (including .bak/.new) without their PIN config must never authorize a replacement root.
+8. Retire/close active setup leases before security changes. The previous review found that a verified-but-unsaved Open-stage setup could still hold a live lease: guard ConfigureSecurity against a non-null setupLease, and offer Pause unfinished setup in Settings before changing protection. Do not rewrap underneath a live checkpoint lease.
+9. Opt-in duress PIN is disabled by default, must differ from normal PIN, entered twice, with explicit all-wallet erase consent. Only a verified match in a live authentication request invokes erasure; ordinary failures never do. Record/fsync a pending marker before stopping work, revoke native/service sessions, delete only this app/profile's Keystore aliases and files, clear only an app-owned clipboard item, then call Android clearApplicationUserData. Attempt later phases even after earlier failures; keep the marker for startup retry before creating a wallet. No device-wide erase, other-app deletion, blockchain erasure, external-backup erasure or forensic-overwrite promise. Never run destructive validation against a real user's device or data.
+10. Preserve actual sync percentages in a compact bar by reusing syncPresentation/syncPercentText; detailed progress stays on Node and in the notification. Preserve Tor-send behavior, transaction verification, reservations, exact-byte retry, account-0 subaddresses, background consent and no process-death auto-unlock.
+
+## Validation and delivery still required
+
+Reconstruct from source with an explicit work checkpoint after each meaningful batch. Build with pinned Rust1.99.1, full JDK17, Gradle8.14.6, SDK/build tools36 and NDK28.2.13676358; restore any archive symlink targets physically if the runtime flattens them. The earlier provisioner restored the original Rust driver because a stripped/truncated compiler failed. Keep build credentials outside source and native-build panic environments.
+
+Run scripts/check.sh after Rust changes, regenerate UniFFI bindings, build both Android ABIs, run meaningful host regressions and lint, then execute guarded disposable-emulator tests. A test device must be genuinely unlocked with its own public fixture credential; never weaken setUnlockedDeviceRequired to bypass a failing test. Test normal PIN unlock, distinct wallet files/purposes, PIN change retaining root, incorrect-PIN delays, duress distinction, canceled async adoption, setup migration interruption and legacy alias retention, seed/key permissions, actual duress clear and pending-wipe startup recovery. Biometric/device tests compiled but not executed are not passing results.
+
+Sign only with the retained Preview2 key and verify its expected certificate/package/version/debugging/backup restrictions. Do not uninstall or clear the user's current Preview2. Verify APK ZIP/DEX/class integrity, native freshness and 16-KiB ELF/ZIP alignment. Package source with internal hashes, exclude private signing data/toolchains/build outputs/test APKs, and save all final artifacts before announcing a download. Keep current published artifact identities intact until a validated replacement exists.
+
+The previously refreshed audit found two unresolved alerts: crypto-bigint0.5.5/RUSTSEC-2026-0387 and rsa0.9.10/RUSTSEC-2023-0071, plus basic-toml, bincode and paste maintenance warnings. Preserve those disclosures; no independent full security-audit claim. The lost tree added only argon2 0.5.3 and blake2 0.10.6 to the 592 third-party baseline lock entries. Do not silently force incompatible protocol/crypto upgrades.
+
+## Reconstruction checkpoint 1
+
+The storage/catalog/PIN/root migration, explicit native key export, wallet/settings/setup UI and authentication wiring have now been reconstructed. Fresh host/native/Android compilation and runtime verification are in progress; prior lost-build results do not validate this tree. This archive is a development checkpoint, not an installer.

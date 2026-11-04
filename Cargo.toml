@@ -1,0 +1,36 @@
+[workspace]
+members = ["crates/wallet-policy", "crates/wallet-keys", "crates/wallet-engine", "crates/wallet-ffi", "vendor/seed", "vendor/polyseed"]
+default-members = ["crates/wallet-policy", "crates/wallet-keys"]
+resolver = "2"
+
+[workspace.package]
+version = "0.11.8"
+edition = "2021"
+license = "GPL-3.0-only"
+rust-version = "1.92"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = "symbols"
+overflow-checks = true
+
+# The upstream protocol workspace uses optimized cryptographic dependencies in
+# host development/tests too. Android release builds already use opt-level 3.
+[profile.dev.package.curve25519-dalek]
+opt-level = 3
+[profile.dev.package.monero-ed25519]
+opt-level = 3
+[profile.dev.package.monero-bulletproofs]
+opt-level = 3
+[profile.dev.package.monero-clsag]
+opt-level = 3
+[profile.dev.package.monero-oxide]
+opt-level = 3
+[profile.dev.package.monero-wallet]
+opt-level = 3
+
+[profile.dev.package.argon2]
+opt-level = 3
+[profile.dev.package.blake2]
+opt-level = 3

@@ -1,0 +1,3 @@
+-keep class app.independentwallet.bindings.** { *; }
+-keep class com.sun.jna.** { *; }
+-keepclasseswithmembernames class * { native <methods>; }

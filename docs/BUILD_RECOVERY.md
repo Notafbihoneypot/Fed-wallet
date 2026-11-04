@@ -1,0 +1,5 @@
+# Rebuilding the test environment
+
+The optional scripts/provision-build-tools.py installs verified public tools into IW_BUILD_TOOLS (default: a sibling wallet-build-tools directory). It verifies archive checksums from publisher manifests, pins Rust1.99.1, Gradle8.14.6, NDK28.2.13676358, build tools36, and the documented Temurin17 archive. Archive symlink targets are restored as physical files if needed by this runtime. It imports only the runtime-managed CA into the build JDK when SSL_CERT_FILE is provided; it never changes wallet TLS trust. User signing keys/passwords stay separate. Standard builds can use an existing equivalent toolchain instead.
+
+Preserve source checkpoints before running long emulator tests. The earlier API36 emulator failed in SystemUI/network stack; use a disposable supported image and genuinely authenticate its own device PIN before Keystore tests. Never remove unlocked-device enforcement to make a test pass. The fixture APK is for a guarded emulator only and is never a user deliverable.

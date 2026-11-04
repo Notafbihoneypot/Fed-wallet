@@ -1,0 +1,20 @@
+/target/
+/android/.gradle/
+/android/local.properties
+/android/**/build/
+/android/app/src/main/jniLibs/
+/android/app/src/main/java/app/independentwallet/bindings/
+/build/
+*.jks
+*.keystore
+.env
+.env.*
+*.p12
+*.pfx
+*.pem
+*.key
+*.keys
+wallet-*.bin
+__pycache__/
+# Preview signing keys stay local and must never be committed or packaged.
+/.private-signing/

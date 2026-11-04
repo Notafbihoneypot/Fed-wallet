@@ -1,0 +1,4 @@
+[bindings.kotlin]
+package_name = "app.independentwallet.bindings"
+cdylib_name = "independent_wallet"
+android = true
