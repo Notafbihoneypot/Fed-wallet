@@ -21,7 +21,7 @@
         android:fullBackupContent="false"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:icon="@drawable/ic_wallet"
-        android:label="Independent Preview 2"
+        android:label="VoidKey"
         android:theme="@style/WalletTheme"
         android:usesCleartextTraffic="false"
         android:enableOnBackInvokedCallback="true">

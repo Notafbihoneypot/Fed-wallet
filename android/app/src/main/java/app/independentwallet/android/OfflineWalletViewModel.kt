@@ -1109,7 +1109,7 @@ class OfflineWalletViewModel(application: Application) : AndroidViewModel(applic
         if (getApplication<Application>().checkSelfPermission(Manifest.permission.INTERNET) != PackageManager.PERMISSION_GRANTED) {
             disconnect()
             mutable.update { it.copy(online = it.online.copy(phase = "Network permission blocked",
-                error = "Allow Network access for Independent Preview 2 in this Android profile's app permissions, then retry. [NET_PERMISSION]")) }
+                error = "Allow Network access for VoidKey in this Android profile's app permissions, then retry. [NET_PERMISSION]")) }
             android.util.Log.w("WalletNetwork", "connect_blocked route=${kind.name} code=NET_PERMISSION")
             return
         }

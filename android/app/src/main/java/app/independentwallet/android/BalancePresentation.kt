@@ -6,7 +6,7 @@ internal fun balanceExplanation(online: OnlineUiState): String? {
     if (status.viewOnly) return "Spent status is unknown for this viewing wallet."
     if (!online.networkEnabled || !online.connected)
         return "Saved balance. Reconnect to update confirmations and spendable XMR."
-    if (online.error != null || !status.synced || online.syncing)
+    if (online.error != null || !status.synced || online.syncing || online.polling)
         return "Sync to the latest block to update confirmations and spendable XMR."
     status.nextUnlockBlocks?.takeIf { it > 0uL }?.let { blocks ->
         return "Received XMR is waiting for confirmations. Next unlock in $blocks ${if (blocks == 1uL) "block" else "blocks"}."

@@ -1,13 +1,17 @@
 [workspace]
-members = ["crates/wallet-policy", "crates/wallet-keys", "crates/wallet-engine", "crates/wallet-ffi", "vendor/seed", "vendor/polyseed"]
+members = ["crates/wallet-policy", "crates/wallet-keys", "crates/wallet-engine", "crates/wallet-ffi", "vendor/seed", "vendor/polyseed", "vendor/ur"]
 default-members = ["crates/wallet-policy", "crates/wallet-keys"]
 resolver = "2"
 
 [workspace.package]
-version = "0.11.8"
+version = "0.11.11"
 edition = "2021"
 license = "GPL-3.0-only"
 rust-version = "1.92"
+
+# Zeroizing fork of the pinned Keystone UR decoder; see vendor/UPSTREAM.md.
+[patch.crates-io]
+ur = { path = "vendor/ur" }
 
 [profile.release]
 lto = "thin"

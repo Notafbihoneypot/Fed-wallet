@@ -5883,14 +5883,14 @@ checksum = "6d49784317cd0d1ee7ec5c716dd598ec5b4483ea832a2dced265471cc0f690ae"
 [[package]]
 name = "ur"
 version = "0.4.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "010f24a953db5d22d0010969ca3bbf40b3857b89f47c0f7be0da4c2d7ded0760"
 dependencies = [
  "bitcoin_hashes",
  "crc",
+ "hex",
  "minicbor",
  "phf 0.11.3",
  "rand_xoshiro",
+ "zeroize",
 ]
 
 [[package]]
@@ -5958,7 +5958,7 @@ dependencies = [
 
 [[package]]
 name = "wallet-engine"
-version = "0.11.8"
+version = "0.11.11"
 dependencies = [
  "arti-client",
  "bytes",
@@ -5991,7 +5991,7 @@ dependencies = [
 
 [[package]]
 name = "wallet-ffi"
-version = "0.11.8"
+version = "0.11.11"
 dependencies = [
  "argon2",
  "rand_core 0.6.4",
@@ -6008,7 +6008,7 @@ dependencies = [
 
 [[package]]
 name = "wallet-keys"
-version = "0.11.8"
+version = "0.11.11"
 dependencies = [
  "curve25519-dalek",
  "hex",
@@ -6026,7 +6026,7 @@ dependencies = [
 
 [[package]]
 name = "wallet-policy"
-version = "0.11.8"
+version = "0.11.11"
 dependencies = [
  "url",
 ]

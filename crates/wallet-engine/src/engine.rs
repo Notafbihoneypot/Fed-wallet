@@ -95,9 +95,13 @@ pub struct WalletEngine<T: HttpTransport> {
     batch_size: u64,
     batch_limit: u64,
     scanner_cache: Option<Scanner>,
+    /// One block chunk downloading while the previous chunk is scanned.
+    prefetch: Option<sync::Prefetch>,
+    /// Time of the last full encrypted state write; quiet windows grow with it.
+    save_cost: Duration,
     preparation: std::sync::Arc<PreparationProgress>,
 }
-impl<T: HttpTransport> WalletEngine<T> {
+impl<T: HttpTransport + Send + 'static> WalletEngine<T> {
     /// Local-only: no Tor instance, sockets, DNS, or daemon construction.
     pub fn new(
         wallet: &OfflineWallet,
@@ -159,6 +163,8 @@ impl<T: HttpTransport> WalletEngine<T> {
                 batch_size: batch::INITIAL,
                 batch_limit: batch::MAX,
                 scanner_cache: None,
+                prefetch: None,
+                save_cost: Duration::ZERO,
                 preparation: Default::default(),
             };
             let mut highest_subaddress = result.state.created_subaddress;
@@ -179,7 +185,10 @@ impl<T: HttpTransport> WalletEngine<T> {
             }
             for p in &result.state.payments {
                 result.check()?;
-                if hex::encode(decode_transaction(&p.bytes)?.hash()) != p.transaction {
+                // Settled payments keep no bytes (`State::strip_settled_payments`).
+                if !p.bytes.is_empty()
+                    && hex::encode(decode_transaction(&p.bytes)?.hash()) != p.transaction
+                {
                     return Err(EngineError::Storage);
                 }
             }
@@ -206,10 +215,12 @@ impl<T: HttpTransport> WalletEngine<T> {
         self.rpc.as_ref().ok_or(EngineError::Disconnected)
     }
     fn commit(&mut self, next: State) -> Result<(), EngineError> {
+        let started = Instant::now();
         if let Err(e) = self.store.save(&next) {
             self.cancel.cancel();
             return Err(e);
         }
+        self.save_cost = started.elapsed();
         self.state = next;
         Ok(())
     }
@@ -234,6 +245,7 @@ impl<T: HttpTransport> WalletEngine<T> {
             return Err(EngineError::Node);
         }
         self.decoy_cache = None;
+        self.prefetch = None;
         self.rpc = Some(rpc);
         self.decoy_source = None;
         self.target_height = target;
@@ -566,7 +578,7 @@ impl WalletEngine<NodeTransport> {
         Ok(())
     }
 }
-impl<T: HttpTransport> WalletEngine<T> {
+impl<T: HttpTransport + Send + 'static> WalletEngine<T> {
     fn distribution_source(
         node: &str,
         route: wallet_policy::connection::NetworkRoute,
@@ -634,6 +646,8 @@ fn genesis(network: Network) -> Result<[u8; 32], EngineError> {
 mod connection_tests;
 #[cfg(test)]
 mod decoy_tests;
+#[cfg(test)]
+mod payment_tests;
 #[cfg(test)]
 mod regtest;
 #[cfg(test)]

@@ -93,7 +93,7 @@ impl State {
             || self.checkpoints.len() > 128
             || self.outputs.len() > 50_000
             || self.history.len() > 50_000
-            || self.payments.len() > 1024
+            || self.payments.len() > 50_000
             || !(20..=1000).contains(&self.subaddress_count)
             || !(1..=crate::MAX_SUBADDRESSES).contains(&self.created_subaddress)
             || self.selected_subaddress > self.created_subaddress
@@ -164,5 +164,27 @@ impl State {
         self.payments
             .iter()
             .any(|p| p.mined_height.is_none() && p.inputs.iter().any(|i| i == key))
+    }
+    /// Marks a saved output spent. A still-pending payment using that input
+    /// lost to another transaction and can never be mined; drop it so it
+    /// releases its other inputs and stops blocking new payments.
+    pub(crate) fn mark_spent(&mut self, key: &str, height: u64) -> Result<(), EngineError> {
+        self.outputs
+            .get_mut(key)
+            .ok_or(EngineError::Storage)?
+            .spent_height = Some(height);
+        self.payments
+            .retain(|p| p.mined_height.is_some() || !p.inputs.iter().any(|i| i == key));
+        Ok(())
+    }
+    /// Signed bytes are kept only for rebroadcast. Past the 128-block rollback
+    /// window a confirmed payment keeps just its summary, so the journal stays small.
+    pub(crate) fn strip_settled_payments(&mut self) {
+        let settled = self.next_height.saturating_sub(128);
+        for p in &mut self.payments {
+            if p.mined_height.is_some_and(|h| h < settled) {
+                p.bytes.zeroize();
+            }
+        }
     }
 }

@@ -257,3 +257,30 @@ fn reorg_rolls_back_outputs_and_spends_but_keeps_reservations() {
     assert_eq!(s.next_output, Some(1));
     assert_eq!(s.next_height, 10);
 }
+#[test]
+fn input_spent_by_another_transaction_releases_its_pending_payment() {
+    let mut s = state();
+    s.next_height = 20;
+    let output = |height| OutputRecord {
+        bytes: "00".into(),
+        height,
+        coinbase: false,
+        image: Some("56".repeat(32)),
+        spent_height: None,
+    };
+    s.outputs = BTreeMap::from([("34".repeat(32), output(5)), ("78".repeat(32), output(6))]);
+    let mut pending = payment();
+    pending.inputs.push("78".repeat(32));
+    let mut mined = payment();
+    mined.transaction = "9a".repeat(32);
+    mined.mined_height = Some(12);
+    s.payments = vec![pending, mined];
+    s.mark_spent(&"34".repeat(32), 15).unwrap();
+    assert_eq!(s.outputs[&"34".repeat(32)].spent_height, Some(15));
+    // The conflicting pending payment is gone and frees its other input too;
+    // confirmed payments are never dropped.
+    assert_eq!(s.payments.len(), 1);
+    assert_eq!(s.payments[0].transaction, "9a".repeat(32));
+    assert!(!s.reserved(&"78".repeat(32)));
+    assert!(s.mark_spent(&"ff".repeat(32), 15).is_err());
+}

@@ -28,7 +28,10 @@ internal object AppWiper {
         val fd=android.system.Os.open(context.noBackupFilesDir.path,android.system.OsConstants.O_RDONLY,0)
         try{android.system.Os.fsync(fd)}finally{android.system.Os.close(fd)}
     }
-    fun erase(context:Context,stop:()->Unit):Boolean=executeWipe(object:WipeActions {
+    /** Blocks the calling (IO) thread until Android accepts the clear, which also kills the process.
+     *  Every attempt re-marks, re-deletes keys and files, so a refused clear never leaves data readable. */
+    fun erase(context:Context,stop:()->Unit){while(!eraseOnce(context,stop))Thread.sleep(2_000)}
+    private fun eraseOnce(context:Context,stop:()->Unit):Boolean=executeWipe(object:WipeActions {
         override fun markPending()=AppWiper.markPending(context)
         override fun stopSessions(){stop();context.appLocks().lock();context.stopService(android.content.Intent(context,WalletSyncService::class.java))}
         override fun deleteKeys(){

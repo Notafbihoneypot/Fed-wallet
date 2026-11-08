@@ -518,9 +518,11 @@ impl OfflineWalletSession {
     }
 
     pub fn lock(&self) {
-        if let Ok(mut state) = self.state.lock() {
-            *state = None;
-        }
+        // A panic elsewhere may have poisoned the mutex; locking must still drop the keys.
+        *self
+            .state
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = None;
     }
     /// Keys are copied only within Rust. Setup/import never calls this.
     pub fn open_online(
@@ -635,6 +637,25 @@ mod tests {
         assert!(restored.recovery_phrase().is_err());
         restored.lock();
         watching.lock();
+    }
+
+    #[test]
+    fn lock_clears_keys_even_after_a_panic_poisoned_the_owner() {
+        let owner =
+            OfflineWalletSession::generate(KeyNetwork::Stagenet, RecoveryFormat::Legacy25).unwrap();
+        let poisoner = owner.clone();
+        assert!(std::thread::spawn(move || {
+            let _guard = poisoner.state.lock().unwrap();
+            panic!("poison the owner mutex");
+        })
+        .join()
+        .is_err());
+        owner.lock();
+        assert!(owner
+            .state
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .is_none());
     }
 
     #[test]

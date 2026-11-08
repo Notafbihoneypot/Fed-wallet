@@ -382,8 +382,11 @@ impl OnlineWalletSession {
     /// Nonblocking cancellation; the in-flight operation drops node streams and keys.
     pub fn disconnect(&self) {
         self.cancel.cancel();
-        if let Ok(mut g) = self.engine.try_lock() {
-            *g = None;
+        match self.engine.try_lock() {
+            Ok(mut g) => *g = None,
+            // A panic poisoned the mutex; the keys inside must still be dropped.
+            Err(std::sync::TryLockError::Poisoned(e)) => *e.into_inner() = None,
+            Err(std::sync::TryLockError::WouldBlock) => {}
         }
     }
 }
@@ -417,5 +420,32 @@ mod progress_tests {
             session.preparation_status(),
             Err(OnlineError::Closed)
         ));
+    }
+
+    #[test]
+    fn disconnect_clears_the_engine_even_after_a_panic_poisoned_it() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().to_str().unwrap();
+        let session = OnlineWalletSession::local_uninitialized(path).unwrap();
+        let wallet = wallet_keys::OfflineWallet::restore_spend_key(
+            wallet_keys::Network::Stagenet,
+            zeroize::Zeroizing::new(format!("01{}", "00".repeat(31))),
+            0,
+        )
+        .unwrap();
+        session.initialize(wallet.snapshot(), path).unwrap();
+        let poisoner = session.clone();
+        assert!(std::thread::spawn(move || {
+            let _guard = poisoner.engine.lock().unwrap();
+            panic!("poison the engine mutex");
+        })
+        .join()
+        .is_err());
+        session.disconnect();
+        assert!(session
+            .engine
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .is_none());
     }
 }

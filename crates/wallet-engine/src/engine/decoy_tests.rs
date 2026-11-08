@@ -261,6 +261,29 @@ async fn small_read_budget_shrinks_only_public_count_pages() {
 }
 
 #[tokio::test]
+async fn failed_cache_write_never_blocks_payment_counts() {
+    let node = CountNode::new(10_000, 310_000);
+    let directory = tempfile::tempdir().unwrap();
+    let mut engine = engine(directory.path(), &node).await;
+    let lock = std::fs::read_dir(directory.path())
+        .unwrap()
+        .map(|e| e.unwrap().path())
+        .find(|p| p.extension().is_some_and(|e| e == "lock"))
+        .unwrap();
+    // A directory where the temporary file belongs makes every save fail.
+    std::fs::create_dir(lock.with_extension("decoys.tmp")).unwrap();
+    assert_eq!(
+        engine
+            .distribution_for_payment(node.hash(310_000))
+            .await
+            .unwrap()
+            .as_ref(),
+        &node.expected()
+    );
+    assert!(engine.store.load_distribution().unwrap().is_none());
+}
+
+#[tokio::test]
 async fn changed_chain_invalidates_disk_counts_and_bad_page_boundaries_are_rejected() {
     let node = CountNode::new(10_000, 310_000);
     let directory = tempfile::tempdir().unwrap();

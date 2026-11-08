@@ -99,7 +99,11 @@ impl Store {
             .and_then(|_| file.write_all(&nonce))
             .and_then(|_| file.write_all(&bytes))
             .and_then(|_| file.sync_all())
-            .map_err(|_| EngineError::Storage)?;
+            .map_err(|_| {
+                // Do not leave a partial temporary file holding scarce space.
+                let _ = fs::remove_file(&tmp);
+                EngineError::Storage
+            })?;
         fs::rename(tmp, path).map_err(|_| EngineError::Storage)?;
         File::open(self.path.parent().ok_or(EngineError::Storage)?)
             .and_then(|directory| directory.sync_all())

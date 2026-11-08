@@ -1,5 +1,5 @@
 // Keep generated FFI separate so its unsafe boundary remains explicit.
-use wallet_policy::{amount, connection::NodeEndpoint};
+use wallet_policy::connection::NodeEndpoint;
 
 uniffi::setup_scaffolding!();
 
@@ -24,14 +24,6 @@ pub fn inspect_node(value: String) -> Result<NodeDetails, PolicyError> {
         normalized_url: node.as_str().into(),
         onion: node.is_onion(),
     })
-}
-
-#[uniffi::export]
-pub fn normalize_amount(value: String) -> Result<String, PolicyError> {
-    let amount = amount::parse_xmr(&value).map_err(|e| PolicyError::InvalidInput {
-        detail: e.to_string(),
-    })?;
-    Ok(amount::format_xmr(amount))
 }
 
 #[uniffi::export]

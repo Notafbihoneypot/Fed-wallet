@@ -26,7 +26,7 @@ Wallet files, node settings and payment journals are isolated by Android applica
 
 The encrypted key is delivered separately as `independent-wallet-preview2-signing-key.p12`, and its separate private recovery/password file as `independent-wallet-preview2-signing-recovery.txt`. Save both in protected owner-controlled storage with independent offline backups. Put the password in a password manager separately from the key. They are APK release credentials, unrelated to any Monero seed, private spending key or private view key. Neither key nor password is included in the APK, source ZIP or validation report. Never commit or publish these private backups.
 
-Future Preview 2 releases must retain this identity, or use an explicitly owner-authorized Android signing lineage to a new protected key. This update does not rotate keys. Do not create a replacement key under the same path/alias and call it a compatible update. The source can build unsigned using `-PunsignedPreview=true`, then be signed on the owner's computer using SDK apksigner and the retained private key. The signing tool prompts for the password. Normal signed Gradle builds read IW_SIGNING_KEYSTORE and IW_SIGNING_PASSWORD, with no public debug password or new-key fallback. Reconfirm package, version, alignment, APK integrity and certificate before distributing an update.
+Preview 2 releases through 0.11.10 required this identity. The source can build unsigned using `-PunsignedPreview=true`, then be signed on the owner's computer using SDK apksigner and the retained private key. The signing tool prompts for the password. Reconfirm package, version, alignment, APK integrity and certificate before distributing an update.
 
 Preview 2 still is a development/debug build. APK signing proves artifact identity/integrity; it is not a security audit or evidence of live GrapheneOS/Tor behavior. See VALIDATION.md for executed checks and outstanding device validation.
 
@@ -37,3 +37,9 @@ The current installer retains this exact package/certificate and updates build 2
 ## 0.11.7 / build 25
 
 This Tor-preparation update retains the same certificate, package, non-debuggable installer settings and existing application data. It installs over Preview 2 builds 23/24 without uninstalling or clearing data. No key rotation or new key is performed.
+
+## 0.11.11 / build 29 replacement identity
+
+The owner reported that the prior Preview 2 private signing key was lost and explicitly authorized a replacement because the installed wallets were disposable tests. Version 0.11.11 keeps package `app.independentwallet.android.syncpreview2` but is signed by RSA-4096 certificate SHA256 `ec1a8a280afe3d0185b6e5a175f226bf7d1f9f93424c020b474d0fa2d7865c15`, using PKCS12 alias `voidkey-release`.
+
+Android cannot treat this as an update to a build signed by the prior key. Uninstalling the prior build deletes its local app data; install 0.11.11 fresh only after accepting that loss. Future VoidKey updates must retain this replacement key. Keep its encrypted `.p12` and password in separate owner-controlled offline backups; neither belongs in source, CI, an APK or a release attachment.

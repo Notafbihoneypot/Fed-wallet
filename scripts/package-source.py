@@ -6,7 +6,7 @@ import sys
 import zipfile
 
 root = pathlib.Path(__file__).resolve().parents[1]
-destination = pathlib.Path(sys.argv[1]).resolve() if len(sys.argv) == 2 else root.parent / "independent-wallet-v0.11.10-source.zip"
+destination = pathlib.Path(sys.argv[1]).resolve() if len(sys.argv) == 2 else root.parent / "independent-wallet-v0.11.11-source.zip"
 blocked = {"target", "build", ".git", ".gradle", ".kotlin", "jniLibs", "captures", "__pycache__"}
 root_names = {"AGENTS.md", "README.md", "NOTICE.md", "CHANGELOG.md", "LICENSE", "Cargo.toml", "Cargo.lock", "rust-toolchain.toml", ".gitignore"}
 def source_file(path):
@@ -47,8 +47,10 @@ for directory in ("crates", "vendor", "docs", "scripts", "android"):
 files = sorted(set(files), key=lambda path: path.relative_to(root).as_posix())
 required = {"Cargo.toml", "Cargo.lock", "crates/wallet-keys/src/lib.rs", "android/app/src/main/java/app/independentwallet/bindings/independent_wallet.kt"}
 assert required.issubset({path.relative_to(root).as_posix() for path in files})
+# Read each file once so the manifest hash and the archived bytes cannot diverge.
+contents = {path: path.read_bytes() for path in files}
 manifest = root / "SHA256SUMS"
-manifest.write_text("".join(hashlib.sha256(path.read_bytes()).hexdigest() + "  " + path.relative_to(root).as_posix() + "\n" for path in files))
+contents[manifest] = "".join(hashlib.sha256(contents[path]).hexdigest() + "  " + path.relative_to(root).as_posix() + "\n" for path in files).encode()
 files.append(manifest)
 destination.parent.mkdir(parents=True, exist_ok=True)
 with zipfile.ZipFile(destination, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=9) as archive:
@@ -59,6 +61,6 @@ with zipfile.ZipFile(destination, "w", compression=zipfile.ZIP_DEFLATED, compres
         executable = path.suffix == ".sh" or path.name in {"gradlew", "package-source.py"}
         info.external_attr = (0o100755 if executable else 0o100644) << 16
         info.compress_type = zipfile.ZIP_DEFLATED
-        archive.writestr(info, path.read_bytes(), compresslevel=9)
+        archive.writestr(info, contents[path], compresslevel=9)
 print(f"{destination}: {len(files)} files, {destination.stat().st_size} bytes")
 print("SHA256 " + hashlib.sha256(destination.read_bytes()).hexdigest())

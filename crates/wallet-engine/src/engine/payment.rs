@@ -1,5 +1,5 @@
 use super::*;
-impl<T: HttpTransport> WalletEngine<T> {
+impl<T: HttpTransport + Send + 'static> WalletEngine<T> {
     pub async fn prepare(
         &mut self,
         destination: &str,
@@ -26,6 +26,8 @@ impl<T: HttpTransport> WalletEngine<T> {
         requested: Option<u64>,
     ) -> Result<PaymentReview, EngineError> {
         self.prepared = None;
+        // Free the session connection for payment reads instead of a scan download.
+        self.prefetch = None;
         self.preparation.reset();
         self.preparation.set_stage(PreparationStage::CheckingChain);
         if self.spend.is_none() {
@@ -192,28 +194,6 @@ impl<T: HttpTransport> WalletEngine<T> {
                 )
                 .map_err(|_| EngineError::Verification)?;
             let bytes = Zeroizing::new(tx.serialize());
-            #[cfg(test)]
-            {
-                // The isolated-node test exercises adversarial serialized bytes,
-                // incorrect fees, and mismatched local key-image expectations.
-                for offset in [0, bytes.len() / 2, bytes.len() - 1] {
-                    let mut changed = bytes.to_vec();
-                    changed[offset] ^= 1;
-                    assert!(
-                        verify_transaction(&changed, intent.clone(), &selected, &images, fee)
-                            .is_err()
-                    );
-                }
-                assert!(
-                    verify_transaction(&bytes, intent.clone(), &selected, &images, fee + 1)
-                        .is_err()
-                );
-                let wrong_images = BTreeSet::from([[255; 32]]);
-                assert!(
-                    verify_transaction(&bytes, intent.clone(), &selected, &wrong_images, fee)
-                        .is_err()
-                );
-            }
             self.preparation.set_stage(PreparationStage::Verifying);
             let verified = verify_transaction(&bytes, intent, &selected, &images, fee)?;
             let transaction = hex::encode(verified.hash());

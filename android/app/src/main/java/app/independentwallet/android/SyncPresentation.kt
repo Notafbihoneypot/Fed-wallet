@@ -22,6 +22,8 @@ internal fun syncPresentation(online: OnlineUiState): SyncPresentation {
         return SyncPresentation(if (online.syncing) SyncPhase.Checking else SyncPhase.Paused)
     if (!online.syncing && status?.let(::needsScanStartChoice) == true)
         return SyncPresentation(SyncPhase.Ready)
+    // A tip check in flight means the last "synced" is no longer known to be current.
+    if (online.polling) return SyncPresentation(SyncPhase.Checking)
     if (status != null && status.targetHeight > 0uL && status.synced && !online.syncing && status.nextHeight >= status.targetHeight)
         return SyncPresentation(SyncPhase.Synced, 1f, 100, 0uL)
     if (!online.syncing) return SyncPresentation(SyncPhase.Paused)

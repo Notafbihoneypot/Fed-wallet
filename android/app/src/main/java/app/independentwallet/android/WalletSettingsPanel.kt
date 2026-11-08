@@ -6,7 +6,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -59,7 +58,7 @@ import app.independentwallet.bindings.KeyWalletMode
         TextButton(onClick={archived=!archived}){Text("Earlier / test wallets (${old.size})")}
         if(archived)old.forEach{e->TextButton(onClick={vm.selectWalletSlot(e.slot)},enabled=idle){Text(e.name+if(e.archived)" · Stagenet archive"else" · identify saved wallet")}}
     }
-    Text("Independent Preview 2 · ${version?:"Core unavailable"}",style=MaterialTheme.typography.labelSmall)
+    Text("VoidKey · ${version?:"Core unavailable"}",style=MaterialTheme.typography.labelSmall)
     if(pinDialog)PinSetupDialog(false,state.busy,{pinDialog=false}){p,r,_->pinDialog=false;vm.setAppPin(p,r)}
     if(duressDialog)PinSetupDialog(true,state.busy,{duressDialog=false}){p,r,c->duressDialog=false;vm.setDuressPin(p,r,c)}
     if(rename)NameDialog("Rename wallet",state.walletName,{rename=false}){rename=false;vm.renameWallet(it)}
@@ -96,7 +95,8 @@ import app.independentwallet.bindings.KeyWalletMode
 @Composable fun WalletKeysPanel(state:OfflineUiState,vm:OfflineWalletViewModel){
     Text("Wallet keys",style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.SemiBold)
     Text("Private spending keys control your funds. Private view keys reveal transaction activity. Keep these offline.")
-    state.keys?.fields()?.forEach{(name,value)->Text(name,style=MaterialTheme.typography.labelLarge);SelectionContainer{Text(value,style=MaterialTheme.typography.bodySmall)};TextButton(onClick={vm.copyWalletKey(name)}){Text("Copy $name")}}
+    // Not selectable: the system Copy action would bypass the sensitive, clearable clip.
+    state.keys?.fields()?.forEach{(name,value)->Text(name,style=MaterialTheme.typography.labelLarge);Text(value,style=MaterialTheme.typography.bodySmall);TextButton(onClick={vm.copyWalletKey(name)}){Text("Copy $name")}}
     state.clipboardMessage?.let{Text(it,style=MaterialTheme.typography.bodySmall)}
     TextButton(onClick=vm::clearSeedClipboard){Text("Clear copy")}
     Button(onClick=vm::hideRecovery,modifier=Modifier.fillMaxWidth()){Text("Done")}

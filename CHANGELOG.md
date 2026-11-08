@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.11.11 VoidKey: sync speed and audit fixes — 6 November 2026
+
+- The app is now named **VoidKey** on the launcher, in Settings and in permission messages. The package ID is unchanged, but the owner replaced the lost Preview 2 signing key after confirming those wallets were disposable tests. Builds signed by the prior key must be uninstalled, deleting their local app data, before installing 0.11.11 fresh.
+
+- Sync downloads the next block chunk on the same session transport while the current chunk is scanned, and scans each chunk on up to four cores. A prefetched chunk is used only if it starts exactly at saved progress; node/route changes and payment preparation discard it.
+- A node whose tip is below saved progress now returns a height error instead of rolling back local scan state (up to a full rescan from the restore height).
+- Pending-payment matching encodes each block's transaction hashes once instead of once per saved payment.
+- Fix `scripts/build-unsigned-release.sh` (`${{...}}` bad substitution) and run the DEX integrity check there. Native core reports 0.11.11 instead of 0.11.8.
+- Quiet scan checkpoints are spaced to at least 10x the last full encrypted state write, so a large wallet spends at most about 10% of sync time rewriting its file. Receipts, spends and confirmations still checkpoint immediately.
+- Duress erasure retries every two seconds, re-deleting keys and files each time, until Android accepts the app-data clear. Before, one refused clear left the app on "Clearing wallet data…".
+- During a tip check the dashboard and notification show "Checking chain tip" instead of a stale "Synced 100%", and the balance is marked as not yet current.
+- A pending payment whose input is spent by a different confirmed transaction (for example, from the same seed on another phone) is dropped during sync, releasing its other inputs. Before, it blocked every later payment forever.
+- Confirmed payments more than 128 blocks deep keep only their summary (signed bytes are wiped), and the journal holds up to 50,000 payments instead of 1,024. Before, payment 1,025 made every later save fail.
+- Wallet keys in Settings are no longer selectable text; the system Copy action bypassed the sensitive, clearable clipboard copy.
+- The decoy-count cache saves at doubling sizes and when complete instead of rewriting the whole file after every page, and a failed save no longer blocks payment preparation.
+- Parallel block scanning stops at the next block when the session is cancelled, so Lock no longer waits for a whole chunk.
+- Lock and disconnect drop native wallet state even after a panic poisoned its mutex.
+- A size-capped prefetch failure retries at the failed request's half, down to the minimum batch, instead of failing when the current batch is already minimal.
+- New default test signs a Max payment offline and checks that exact bytes verify and that changed bytes, fee or key images do not; the test-only checks inside payment preparation are removed.
+- The Keystone UR decoder is vendored with zeroizing fragment buffers (vendor/UPSTREAM.md).
+- Build provenance: the tool provisioner raises instead of `assert` on checksum checks and uses committed archive URLs and SHA-256 hashes; Gradle dependencies are verified against `android/gradle/verification-metadata.xml`. Release CI runs the Android security instrumentation tests on a disposable emulator before uploading. The source packager no longer writes `SHA256SUMS` into the tree and defaults to the 0.11.11 file name.
+
 ## 0.11.11 Fed POS NFC source candidate — 3 November 2026 (not built)
 
 - Add a separate merchant NFC Forum NDEF URI reader mode alongside the existing IWM1 phone-to-phone HCE mode. Untrusted merchant requests must contain a single URI record, a matching-network Monero address and a positive, precise amount. Neither NFC mode prepares or sends a transaction.

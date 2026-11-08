@@ -21,7 +21,7 @@ pub(crate) fn valid_subaddress_label(label: &str) -> bool {
             c.is_control() || matches!(c, '\u{202a}'..='\u{202e}' | '\u{2066}'..='\u{2069}')
         })
 }
-impl<T: HttpTransport> WalletEngine<T> {
+impl<T: HttpTransport + Send + 'static> WalletEngine<T> {
     pub fn receiving_addresses(&self) -> Result<ReceivingAddressBook, EngineError> {
         self.check()?;
         Ok(ReceivingAddressBook {

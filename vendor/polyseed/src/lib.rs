@@ -128,24 +128,6 @@ pub enum PolyseedError {
 pub enum Language {
     /// English language option.
     English,
-    /// Spanish language option.
-    Spanish,
-    /// French language option.
-    French,
-    /// Italian language option.
-    Italian,
-    /// Japanese language option.
-    Japanese,
-    /// Korean language option.
-    Korean,
-    /// Czech language option.
-    Czech,
-    /// Portuguese language option.
-    Portuguese,
-    /// Simplified Chinese language option.
-    ChineseSimplified,
-    /// Traditional Chinese language option.
-    ChineseTraditional,
 }
 
 struct WordList {
@@ -167,50 +149,11 @@ impl WordList {
     }
 }
 
-#[allow(clippy::unicode_not_nfc)]
 static LANGUAGES: LazyLock<HashMap<Language, WordList>> = LazyLock::new(|| {
-    HashMap::from([
-        (
-            Language::Czech,
-            WordList::new(include!("./words/cs.rs"), true, false),
-        ),
-        (
-            Language::French,
-            WordList::new(include!("./words/fr.rs"), true, true),
-        ),
-        (
-            Language::Korean,
-            WordList::new(include!("./words/ko.rs"), false, false),
-        ),
-        (
-            Language::English,
-            WordList::new(include!("./words/en.rs"), true, false),
-        ),
-        (
-            Language::Italian,
-            WordList::new(include!("./words/it.rs"), true, false),
-        ),
-        (
-            Language::Spanish,
-            WordList::new(include!("./words/es.rs"), true, true),
-        ),
-        (
-            Language::Japanese,
-            WordList::new(include!("./words/ja.rs"), false, false),
-        ),
-        (
-            Language::Portuguese,
-            WordList::new(include!("./words/pt.rs"), true, false),
-        ),
-        (
-            Language::ChineseSimplified,
-            WordList::new(include!("./words/zh_simplified.rs"), false, false),
-        ),
-        (
-            Language::ChineseTraditional,
-            WordList::new(include!("./words/zh_traditional.rs"), false, false),
-        ),
-    ])
+    HashMap::from([(
+        Language::English,
+        WordList::new(include!("./words/en.rs"), true, false),
+    )])
 });
 
 /// A Polyseed.

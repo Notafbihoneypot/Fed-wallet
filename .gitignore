@@ -18,3 +18,5 @@ wallet-*.bin
 __pycache__/
 # Preview signing keys stay local and must never be committed or packaged.
 /.private-signing/
+Independent-Wallet-*-source.zip
+/SHA256SUMS

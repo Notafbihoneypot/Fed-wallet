@@ -95,7 +95,7 @@ impl<P: ProvidesDecoys> ProvidesDecoys for CachedDecoys<'_, P> {
         self.rpc.unlocked_ringct_outputs(indexes, evaluate).await
     }
 }
-impl<T: HttpTransport> WalletEngine<T> {
+impl<T: HttpTransport + Send + 'static> WalletEngine<T> {
     pub(super) async fn distribution_for_payment(
         &mut self,
         hash: [u8; 32],
@@ -131,6 +131,11 @@ impl<T: HttpTransport> WalletEngine<T> {
                 cache = Some(old);
             }
         }
+        // Each save rewrites the whole file, so save at doubling sizes and once
+        // complete. This optional cache must never block a payment: stop saving
+        // after the first failure and keep the validated counts in memory.
+        let mut persist = self.decoy_source.is_some();
+        let mut saved_len = cache.as_ref().map_or(0, |c| c.counts.len());
         let mut page_blocks = PAGE_BLOCKS;
         loop {
             self.check()?;
@@ -217,8 +222,9 @@ impl<T: HttpTransport> WalletEngine<T> {
             }
             self.check()?;
             let saved = cache.as_ref().ok_or(EngineError::Node)?;
-            if self.decoy_source.is_some() {
-                self.store.save_distribution(saved)?;
+            if persist && (saved.complete || saved.counts.len() >= saved_len.saturating_mul(2)) {
+                persist = self.store.save_distribution(saved).is_ok();
+                saved_len = saved.counts.len();
             }
             self.check()?;
             self.preparation.saved_counts(saved.counts.len());

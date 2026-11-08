@@ -31,45 +31,13 @@ pub enum SeedError {
     /// The checksum did not match the data.
     #[cfg_attr(feature = "std", error("invalid checksum"))]
     InvalidChecksum,
-    /// The deprecated English language option was used with a checksum.
-    ///
-    /// The deprecated English language option did not include a checksum.
-    #[cfg_attr(
-        feature = "std",
-        error("deprecated English language option included a checksum")
-    )]
-    DeprecatedEnglishWithChecksum,
 }
 
 /// Language options.
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Hash, Zeroize)]
 pub enum Language {
-    /// Chinese language option.
-    Chinese,
     /// English language option.
     English,
-    /// Dutch language option.
-    Dutch,
-    /// French language option.
-    French,
-    /// Spanish language option.
-    Spanish,
-    /// German language option.
-    German,
-    /// Italian language option.
-    Italian,
-    /// Portuguese language option.
-    Portuguese,
-    /// Japanese language option.
-    Japanese,
-    /// Russian language option.
-    Russian,
-    /// Esperanto language option.
-    Esperanto,
-    /// Lojban language option.
-    Lojban,
-    /// The original, and deprecated, English language.
-    DeprecatedEnglish,
 }
 
 fn trim(word: &str, len: usize) -> Zeroizing<String> {
@@ -104,57 +72,10 @@ impl WordList {
 }
 
 static LANGUAGES: LazyLock<HashMap<Language, WordList>> = LazyLock::new(|| {
-    HashMap::from([
-        (
-            Language::Chinese,
-            WordList::new(include!("./words/zh.rs"), 1),
-        ),
-        (
-            Language::English,
-            WordList::new(include!("./words/en.rs"), 3),
-        ),
-        (Language::Dutch, WordList::new(include!("./words/nl.rs"), 4)),
-        (
-            Language::French,
-            WordList::new(include!("./words/fr.rs"), 4),
-        ),
-        (
-            Language::Spanish,
-            WordList::new(include!("./words/es.rs"), 4),
-        ),
-        (
-            Language::German,
-            WordList::new(include!("./words/de.rs"), 4),
-        ),
-        (
-            Language::Italian,
-            WordList::new(include!("./words/it.rs"), 4),
-        ),
-        (
-            Language::Portuguese,
-            WordList::new(include!("./words/pt.rs"), 4),
-        ),
-        (
-            Language::Japanese,
-            WordList::new(include!("./words/ja.rs"), 3),
-        ),
-        (
-            Language::Russian,
-            WordList::new(include!("./words/ru.rs"), 4),
-        ),
-        (
-            Language::Esperanto,
-            WordList::new(include!("./words/eo.rs"), 4),
-        ),
-        (
-            Language::Lojban,
-            WordList::new(include!("./words/jbo.rs"), 4),
-        ),
-        (
-            Language::DeprecatedEnglish,
-            WordList::new(include!("./words/ang.rs"), 4),
-        ),
-    ])
+    HashMap::from([(
+        Language::English,
+        WordList::new(include!("./words/en.rs"), 3),
+    )])
 });
 
 fn checksum_index(words: &[Zeroizing<String>], lang: &WordList) -> usize {
@@ -254,11 +175,8 @@ fn key_to_seed(lang: Language, key: Zeroizing<Scalar>) -> Seed {
     segment.zeroize();
     indices.zeroize();
 
-    // create a checksum word for all languages except old english
-    if lang != Language::DeprecatedEnglish {
-        let checksum = seed[checksum_index(&seed, &LANGUAGES[&lang])].clone();
-        seed.push(checksum);
-    }
+    let checksum = seed[checksum_index(&seed, &LANGUAGES[&lang])].clone();
+    seed.push(checksum);
 
     let capacity = seed.iter().map(|word| word.len()).sum::<usize>() + seed.len() - 1;
     let mut res = Zeroizing::new(String::with_capacity(capacity));
@@ -280,11 +198,6 @@ fn seed_to_bytes(lang: Language, words: &str) -> Result<Zeroizing<[u8; 32]>, See
         .collect::<Vec<_>>();
     if (words.len() != SEED_LENGTH) && (words.len() != SEED_LENGTH_WITH_CHECKSUM) {
         Err(SeedError::InvalidSeed)?;
-    }
-
-    let has_checksum = words.len() == SEED_LENGTH_WITH_CHECKSUM;
-    if has_checksum && lang == Language::DeprecatedEnglish {
-        Err(SeedError::DeprecatedEnglishWithChecksum)?;
     }
 
     // Validate words are in the language word list

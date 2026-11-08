@@ -33,6 +33,9 @@ class SyncPresentationTest {
         assertEquals(SyncPhase.Paused, syncPresentation(complete.copy(error = "public fixture error")).phase)
         assertEquals(SyncPhase.Connecting, syncPresentation(complete.copy(connected = false)).phase)
         assertEquals(SyncPhase.Checking, syncPresentation(complete.copy(syncing = true)).phase)
+        val polling = complete.copy(polling = true, busy = true)
+        assertEquals(SyncPhase.Checking, syncPresentation(polling).phase); assertNull(syncPresentation(polling).percent)
+        assertNotNull(balanceExplanation(polling))
         assertEquals(SyncPhase.Paused, syncPresentation(live(20uL, 200uL).copy(syncing = false)).phase)
     }
     @Test fun unknownAndInconsistentHeightsDoNotProduceFakeCompletion() {

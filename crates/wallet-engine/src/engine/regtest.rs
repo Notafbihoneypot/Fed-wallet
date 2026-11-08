@@ -125,7 +125,7 @@ fn fixture(n: u8) -> OfflineWallet {
     )
     .unwrap()
 }
-async fn sync<T: HttpTransport>(e: &mut WalletEngine<T>) -> SyncStatus {
+async fn sync<T: HttpTransport + Send + 'static>(e: &mut WalletEngine<T>) -> SyncStatus {
     loop {
         let s = e.sync_batch().await.unwrap();
         if s.synced {

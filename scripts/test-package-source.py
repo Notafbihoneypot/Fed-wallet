@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Exercise the deliverable boundary with dummy secrets, never real wallets."""
+import hashlib
 import pathlib
 import shutil
 import subprocess
@@ -49,6 +50,7 @@ class SourceArchiveTests(unittest.TestCase):
             archive = pathlib.Path(directory) / "source.zip"
             result = subprocess.run([sys.executable, str(root / "scripts/package-source.py"), str(archive)], capture_output=True, text=True)
             self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertFalse((root / "SHA256SUMS").exists(), "packaging must not write into the source tree")
             with zipfile.ZipFile(archive) as zipped:
                 members = {path.removeprefix("independent-wallet/") for path in zipped.namelist()}
                 self.assertTrue(set(paths).issubset(members))
@@ -57,6 +59,9 @@ class SourceArchiveTests(unittest.TestCase):
                 self.assertNotIn("README.md", members)
                 for name in zipped.namelist():
                     self.assertNotIn(b"DUMMY_SECRET_FIXTURE_DO_NOT_PACKAGE", zipped.read(name))
+                for line in zipped.read("independent-wallet/SHA256SUMS").decode().splitlines():
+                    digest, name = line.split("  ", 1)
+                    self.assertEqual(digest, hashlib.sha256(zipped.read("independent-wallet/" + name)).hexdigest())
 
 
 if __name__ == "__main__":

@@ -1,4 +1,4 @@
-# Independent Android Monero Wallet — Preview 2, 0.11.10
+# VoidKey — Independent Android Monero Wallet, Preview 2, 0.11.11
 
 An independent native Android wallet with Kotlin/Compose and a Rust application core. This developer build combines local synchronization/software payments with explicit direct and embedded Tor routes with an original dark, green-and-amber retro interface and explicit seed-backup controls.
 
@@ -8,13 +8,13 @@ Setup has two choices: **Software wallet** and **Hardware wallet (Keystone)**. S
 
 ## Build status
 
-Version **0.11.10-preview2**, Android code **28**, updates **Independent Preview 2** (`app.independentwallet.android.syncpreview2`) in place using the same backed-up signing certificate: `01afd9a36efbb0d6573d8f12764164a14af3d99faa4a97ccfce45dff82cd52b5`. Install over Preview 2 without uninstalling/clearing its wallet data. The earlier `app.independentwallet.android.syncpreview` package remains separate; its original signing key is still unavailable.
+Version **0.11.11-preview2-candidate**, Android code **29**, is shown on the phone as **VoidKey** and keeps package `app.independentwallet.android.syncpreview2`. Its owner-authorized replacement signing certificate is `ec1a8a280afe3d0185b6e5a175f226bf7d1f9f93424c020b474d0fa2d7865c15`. It cannot update an installation signed by the lost prior Preview 2 key: uninstalling that build deletes its local app data, then this APK installs fresh. The owner confirmed the prior wallets were disposable tests.
 
-The update fixes a large, one-request decoy-data download that can time out while preparing a Tor payment. It downloads bounded parts, saves completed parts encrypted for later attempts, checks their selected node/route and chain snapshot, and shows live preparation stages. It also preserves the original network error from a decoy lookup. See [Tor send update](docs/TOR_SEND_0_11_7.md). The earlier subaddress, scanner and installer hardening changes remain.
+0.11.11 renames the app, speeds up sync and fixes the audit findings listed in [CHANGELOG](CHANGELOG.md). Version 0.11.7 fixed a large, one-request decoy-data download that could time out while preparing a Tor payment. It downloads bounded parts, saves completed parts encrypted for later attempts, checks their selected node/route and chain snapshot, and shows live preparation stages. It also preserves the original network error from a decoy lookup. See [Tor send update](docs/TOR_SEND_0_11_7.md). The earlier subaddress, scanner and installer hardening changes remain.
 
 Two upstream vulnerability alerts and three maintenance warnings from the previous review remain documented in [security review](docs/SECURITY_0_11_6.md). This is a development preview; host tests do not establish live phone/Tor behavior or an independent security audit. See [validation](docs/VALIDATION.md).
 
-The protected APK-signing key and separate private recovery file remain outside public source/APK/report artifacts. Retain the exact signing identity unless an owner-authorized Android signing lineage deliberately rotates it; do not generate an arbitrary replacement key. See [signing](docs/PREVIEW2_SIGNING.md).
+The protected replacement APK-signing key and password remain outside public source/APK/report artifacts. Retain this exact identity for every later VoidKey update; do not generate another replacement. See [signing](docs/PREVIEW2_SIGNING.md).
 
 ## Wallet experience
 
@@ -78,21 +78,18 @@ The preview has a 0.05 XMR fee cap, up to 16 inputs and one recipient. Incoming 
 
 ## Install and build
 
-The current 0.11.6 Preview 2 installer uses `app.independentwallet.android.syncpreview2` and the separately backed-up Preview 2 signing key. Later Preview 2 updates must retain both. This is a developer preview, not a production release. Old Sync Preview installations have independent storage and cannot be updated with this key.
+The 0.11.11 installer uses `app.independentwallet.android.syncpreview2` and the separately backed-up replacement VoidKey signing key. Later updates must retain both. Builds signed by the prior Preview 2 key must be uninstalled before this fresh installation, which deletes their local app data. This is a developer preview, not a production release.
 
 Install Python 3, pinned Rust 1.99.1, JDK 17, SDK platform 36/build tools 36.0.0 and NDK 28.2.13676358. Install cargo-ndk 4.1.2 with `cargo install cargo-ndk --version 4.1.2 --locked`, then set ANDROID_HOME and ANDROID_NDK_HOME.
 
-Build an unsigned Preview 2 candidate and sign locally with the retained key:
+Build an unsigned candidate and sign locally with the retained replacement key:
 
-    bash scripts/check.sh
-    bash scripts/build-bindings.sh
-    bash scripts/build-android-native.sh
-    bash android/gradlew -p android :app:assembleDebug :app:testDebugUnitTest :app:compileDebugAndroidTestKotlin :app:lintDebug -PunsignedPreview=true
-    zipalign -c -P 16 4 android/app/build/outputs/apk/debug/app-debug-unsigned.apk
-    apksigner sign --ks /private/path/independent-wallet-preview2-signing-key.p12 --ks-key-alias independentwallet-preview2 --out independent-wallet-v0.11.10-preview2.apk android/app/build/outputs/apk/debug/app-debug-unsigned.apk
-    apksigner verify --verbose --print-certs independent-wallet-v0.11.10-preview2.apk
+    bash scripts/build-unsigned-release.sh
+    zipalign -c -P 16 4 android/app/build/outputs/apk/release/app-release-unsigned.apk
+    apksigner sign --ks /private/path/voidkey-signing-key.p12 --ks-key-alias voidkey-release --out voidkey-v0.11.11.apk android/app/build/outputs/apk/release/app-release-unsigned.apk
+    apksigner verify --verbose --print-certs voidkey-v0.11.11.apk
 
-The signing command prompts for the password; do not put it in shell history. The Android SDK build tools must be available on PATH. Compare the certificate SHA256 with PREVIEW2_SIGNING.md. Do not modify the APK after signing. Normal signed Gradle builds use the key path in IW_SIGNING_KEYSTORE (or `.private-signing/preview2.p12`) and IW_SIGNING_PASSWORD supplied locally, with alias `independentwallet-preview2`. Neither secret belongs in source, CI logs or public releases. Never regenerate a key as a substitute for a lost identity. Keep independent owner-controlled backups of the encrypted key and password.
+The signing command prompts for the password; do not put it in shell history. The Android SDK build tools must be available on PATH. Compare the certificate SHA256 with PREVIEW2_SIGNING.md. Do not modify the APK after signing. Neither the key nor its password belongs in source, CI logs or public releases. Keep independent owner-controlled backups of both.
 
 Gradle is pinned/checksummed at 8.14.6. ABIs are arm64-v8a and x86_64; minimum Android API 28. The source archive includes generated bindings, not native libraries or build caches. Build native libraries before packaging an APK or running real host JNA/UniFFI tests.
 

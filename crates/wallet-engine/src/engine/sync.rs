@@ -1,6 +1,56 @@
 use super::*;
+use tokio_util::task::AbortOnDropHandle;
 
-impl<T: HttpTransport> WalletEngine<T> {
+/// `(start, end, download)` of the next block chunk on the same session transport.
+pub(super) type Prefetch = (
+    u64,
+    u64,
+    AbortOnDropHandle<Result<Vec<ScannableBlock>, InterfaceError>>,
+);
+/// Scanning threads per chunk; capped to bound phone heat and battery use.
+const SCAN_THREADS: usize = 4;
+
+/// Scanning is per-block and the scanner is read-only, so split a chunk across
+/// cores. Results stay in block order; errors are surfaced per block by the caller.
+/// Workers stop at the next block once `cancel` fires, so Lock never waits for a chunk.
+fn scan_blocks(
+    scanner: &Scanner,
+    blocks: &[ScannableBlock],
+    cancel: &CancellationToken,
+) -> Result<Vec<Result<Vec<WalletOutput>, monero_wallet::ScanError>>, EngineError> {
+    let threads = std::thread::available_parallelism().map_or(1, |n| n.get().min(SCAN_THREADS));
+    let per = blocks.len().div_ceil(threads).max(1);
+    let found: Vec<_> = std::thread::scope(|s| {
+        let parts: Vec<_> = blocks
+            .chunks(per)
+            .map(|part| {
+                let mut scanner = scanner.clone();
+                s.spawn(move || {
+                    part.iter()
+                        .map_while(|b| {
+                            (!cancel.is_cancelled()).then(|| {
+                                scanner
+                                    .scan(b.clone())
+                                    .map(|t| t.ignore_additional_timelock())
+                            })
+                        })
+                        .collect::<Vec<_>>()
+                })
+            })
+            .collect();
+        parts
+            .into_iter()
+            .flat_map(|p| p.join().unwrap_or_else(|e| std::panic::resume_unwind(e)))
+            .collect()
+    });
+    // A cancelled worker returns a short list; never pair it with the wrong blocks.
+    if cancel.is_cancelled() {
+        return Err(EngineError::Disconnected);
+    }
+    Ok(found)
+}
+
+impl<T: HttpTransport + Send + 'static> WalletEngine<T> {
     /// Read tip metadata only. A timer cannot discard an active payment review.
     pub async fn poll_updates(&mut self) -> Result<SyncStatus, EngineError> {
         self.check()?;
@@ -61,10 +111,12 @@ impl<T: HttpTransport> WalletEngine<T> {
             return Err(EngineError::Node);
         }
         self.target_height = tip;
-        self.rollback_reorg(tip).await?;
+        // A node behind saved progress must not trigger a rollback (worst case to
+        // the restore height). Wait until it covers saved progress, then check reorgs.
         if self.state.next_height > tip {
             return Err(EngineError::Height);
         }
+        self.rollback_reorg(tip).await?;
         if self.state.next_height == tip {
             self.synced = true;
             return self.status();
@@ -92,23 +144,37 @@ impl<T: HttpTransport> WalletEngine<T> {
             let start = next.next_height;
             let (end, blocks) = loop {
                 self.check()?;
-                let end = start.saturating_add(self.batch_size).min(window_end);
-                match self
-                    .rpc()?
-                    .contiguous_scannable_blocks(start as usize..=(end - 1) as usize)
-                    .await
-                {
+                let prefetched = match self.prefetch.take() {
+                    Some((from, to, download)) if from == start && to <= window_end => {
+                        download.await.ok().map(|result| (to, result))
+                    }
+                    _ => None,
+                };
+                let (end, result) = match prefetched {
+                    Some(fetched) => fetched,
+                    None => {
+                        let end = start.saturating_add(self.batch_size).min(window_end);
+                        let result = self
+                            .rpc()?
+                            .contiguous_scannable_blocks(start as usize..=(end - 1) as usize)
+                            .await;
+                        (end, result)
+                    }
+                };
+                match result {
                     Ok(blocks) => break (end, blocks),
                     Err(error) => {
                         let error = EngineError::node_error(error);
+                        // A prefetched read may be larger than the current batch size.
+                        let requested = end - start;
                         if matches!(
                             error,
                             EngineError::Transport(crate::transport::NodeFailure::Size)
-                        ) && self.batch_size > batch::MIN
+                        ) && requested > batch::MIN
                         {
                             // Retry only this read, on the same consented route/node,
                             // with fewer blocks and the original hard response cap.
-                            self.batch_limit = (self.batch_size / 2).max(batch::MIN);
+                            self.batch_limit = (requested / 2).max(batch::MIN);
                             self.batch_size = self.batch_limit;
                             continue;
                         }
@@ -131,7 +197,26 @@ impl<T: HttpTransport> WalletEngine<T> {
                     .map_err(EngineError::node_error)?;
                 next.next_output = Some(*d.last().ok_or(EngineError::Node)?);
             }
-            for block in blocks {
+            if end < window_end {
+                // Download the next chunk while this one is scanned. It is only
+                // used if it starts exactly where this window's progress ends.
+                let to = end.saturating_add(self.batch_size).min(window_end);
+                let rpc = self.rpc()?.clone();
+                self.prefetch = Some((
+                    end,
+                    to,
+                    AbortOnDropHandle::new(tokio::spawn(async move {
+                        rpc.contiguous_scannable_blocks(end as usize..=(to - 1) as usize)
+                            .await
+                    })),
+                ));
+            }
+            let found = scan_blocks(
+                self.scanner_cache.as_ref().ok_or(EngineError::Storage)?,
+                &blocks,
+                &self.cancel,
+            )?;
+            for (block, found) in blocks.iter().zip(found) {
                 self.check()?;
                 let h = block.block.number() as u64;
                 if h != next.next_height {
@@ -165,26 +250,19 @@ impl<T: HttpTransport> WalletEngine<T> {
                 if count > 0 && block.output_index_for_first_ringct_output != Some(first) {
                     return Err(EngineError::Node);
                 }
-                for p in &mut next.payments {
-                    if block
-                        .block
-                        .transactions
-                        .iter()
-                        .any(|h| hex::encode(h) == p.transaction)
-                    {
-                        activity |= p.mined_height != Some(h);
-                        p.mined_height = Some(h);
+                if !next.payments.is_empty() {
+                    // Encode each block hash once, not once per saved payment.
+                    let mined: BTreeSet<String> =
+                        block.block.transactions.iter().map(hex::encode).collect();
+                    for p in &mut next.payments {
+                        if mined.contains(&p.transaction) {
+                            activity |= p.mined_height != Some(h);
+                            p.mined_height = Some(h);
+                        }
                     }
                 }
                 let mut received = BTreeMap::<String, u64>::new();
-                for o in self
-                    .scanner_cache
-                    .as_mut()
-                    .ok_or(EngineError::Storage)?
-                    .scan(block)
-                    .map_err(|_| EngineError::Node)?
-                    .ignore_additional_timelock()
-                {
+                for o in found.map_err(|_| EngineError::Node)? {
                     if let Some(index) = o.subaddress() {
                         if index.account() != 0 || index.address() > crate::MAX_SUBADDRESSES {
                             return Err(EngineError::Verification);
@@ -228,9 +306,8 @@ impl<T: HttpTransport> WalletEngine<T> {
                 }
                 for image in spent {
                     if let Some(key) = image_index.remove(&image) {
-                        let output = next.outputs.get_mut(&key).ok_or(EngineError::Storage)?;
                         activity = true;
-                        output.spent_height = Some(h);
+                        next.mark_spent(&key, h)?;
                     }
                 }
                 let next_output = first.checked_add(count).ok_or(EngineError::Node)?;
@@ -249,12 +326,14 @@ impl<T: HttpTransport> WalletEngine<T> {
                 batch::next(self.batch_size, chunk_started.elapsed()).min(self.batch_limit);
             // Receipt/spend/confirmation changes are checkpointed after this
             // read. Quiet history is coalesced up to 2,000 blocks or a target
-            // of two seconds; one slow node request can exceed that target.
-            if activity || started.elapsed() >= Duration::from_secs(2) {
+            // of two seconds, stretched to 10x the last full-state save so a
+            // large wallet spends at most ~10% of sync time rewriting its file.
+            if activity || started.elapsed() >= Duration::from_secs(2).max(self.save_cost * 10) {
                 break;
             }
         }
         self.check()?;
+        next.strip_settled_payments();
         self.commit(next)?;
         self.synced = self.state.next_height == tip;
         self.status()
