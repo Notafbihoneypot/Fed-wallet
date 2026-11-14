@@ -22,7 +22,7 @@ If you notice you are reaching for the first verdict before you have looked, sto
 2. **Gather evidence from the code as it is now.** Read the function and its callers. For anything in the upstream Monero crates, read the pinned version's source on disk (the `monero-rust` skill shows how to find it). For randomness questions, run:
 
    ```bash
-   .claude/skills/explain-code/scripts/rng_inventory.sh
+   bash .claude/skills/explain-code/scripts/rng_inventory.sh
    ```
 
    It lists every place randomness is created, seeded or used, in this repository and in the pinned upstream crates. `references/rng.md` explains each entry as of the last review; treat that file as a starting map and re-check any entry you rely on, since code moves.
