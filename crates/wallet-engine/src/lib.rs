@@ -21,6 +21,8 @@ pub enum EngineError {
     Busy,
     #[error("The node returned invalid Monero RPC data. Check that its address and port are for a Monero node RPC service. [NODE_RPC]")]
     Node,
+    #[error("The node's decoy data does not match this wallet's own scan, or too much of it was unusable. No payment was prepared. Use a different node instead of retrying this one. [NODE_DECOYS]")]
+    DecoyData,
     #[error("{0}")]
     Transport(transport::NodeFailure),
     #[error("The wallet and node use different networks. Select a node for this wallet's Mainnet or Stagenet network. [NET_NETWORK]")]

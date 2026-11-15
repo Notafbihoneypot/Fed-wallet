@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased: decoy-data checks and transaction details
+
+Host-tested only (Rust workspace tests and lints, Kotlin compile, 164 Android unit tests). Not yet run on a device, against a live node, or through `scripts/test-regtest.py`; no release build or version change.
+
+- Decoy counts from the node are now checked against what the wallet holds itself before any decoy is chosen: the cumulative RingCT output count of every block in its last 128 scanned blocks, and the chain index and block of every output it owns. Counts that disagree are refused with a new `NODE_DECOYS` error, and nothing from that node's count history is kept.
+- A count history that stops before block 0 must cover at least one year of blocks. Before, a node could present its last few blocks as the whole history; measured on a synthetic chain, that moved the median decoy age from about 1.4 days to about 13 months and left a recent spend visibly alone.
+- A node may report at most two unusable decoy candidates per input (locked, undecodable, torsioned or identity key). Beyond that the reply is refused before any replacement request is sent. Before, a node reporting 15 of 16 candidates as locked could single out the real spend without an error; now it can rule out at most two ring members.
+- Remaining limits, unchanged: a node that only logs requests can still link two preparations of the same coin, and counts older than the wallet's own 128-block window are checked only where the wallet owns an output.
+- Activity rows open a details sheet for received as well as sent transactions, with the transaction ID and a Copy button. Sent payments also offer Copy recipient address.
+- Sent payments record their transaction key in the encrypted wallet journal, checked against the public key inside the signed transaction before it is stored. It is shown only after device authentication, is not selectable text, hides after one minute, and is copied through the same sensitive, clearable clipboard as wallet keys. Payments sent before this change have no recorded key and say so.
+
 ## 0.11.11 VoidKey: sync speed and audit fixes — 6 November 2026
 
 - The app is now named **VoidKey** on the launcher, in Settings and in permission messages. The package ID is unchanged, but the owner replaced the lost Preview 2 signing key after confirming those wallets were disposable tests. Builds signed by the prior key must be uninstalled, deleting their local app data, before installing 0.11.11 fresh.

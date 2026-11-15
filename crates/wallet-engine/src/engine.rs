@@ -13,7 +13,7 @@ use monero_wallet::{
     ed25519::{Point, Scalar},
     interface::prelude::*,
     ringct::RctType,
-    send::{Change, Eventuality, SendError, SignableTransaction},
+    send::{Change, Eventuality, SendError, SignableTransaction, TransactionKeys},
     transaction::{Input, Pruned, Timelock, Transaction},
     OutputWithDecoys, Scanner, ViewPair, WalletOutput,
 };
@@ -62,6 +62,8 @@ pub struct PaymentStatus {
     pub total_atomic: u64,
     pub mined_height: Option<u64>,
     pub confirmations: u64,
+    /// Whether this payment's transaction key was recorded when it was sent.
+    pub has_transaction_key: bool,
 }
 pub struct PaymentReview {
     pub send_max: bool,
@@ -422,6 +424,7 @@ impl<T: HttpTransport + Send + 'static> WalletEngine<T> {
                         confirmations: p
                             .mined_height
                             .map_or(0, |h| self.state.next_height.saturating_sub(h)),
+                        has_transaction_key: p.tx_key.is_some(),
                     })
                 })
                 .collect::<Result<Vec<_>, EngineError>>()?,

@@ -1,6 +1,6 @@
 # Decoy issue classes
 
-Baseline: 14 November 2026, wallet 0.11.11, `monero-wallet 0.2.0`, `monero-interface 0.2.0`, `monero-daemon-rpc 0.2.0`. Function names are given instead of line numbers because lines move; re-read the code before citing it.
+Baseline: 15 November 2026, wallet 0.11.11 plus the unreleased decoy-data checks, `monero-wallet 0.2.0`, `monero-interface 0.2.0`, `monero-daemon-rpc 0.2.0`. Function names are given instead of line numbers because lines move; re-read the code before citing it.
 
 Paths under "upstream" are inside the pinned `monero-wallet` crate source (see the `monero-rust` skill for how to find it on disk).
 
@@ -22,17 +22,17 @@ Paths under "upstream" are inside the pinned `monero-wallet` crate source (see t
 
 **What:** the node returns a correct-length reply but marks some candidates as locked (or gives them undecodable keys). Upstream's outer loop then asks for replacements, and that request never contains the real output. The real spend must be among the first-round candidates that survive into the ring. If the node happens to mark the real output itself, the wallet aborts with "node presented different view of output we're trying to spend".
 **Who learns:** an actively lying node. It narrows 16 to (16 minus the number it marked), with no error shown, whenever its blind pick misses the real output.
-**Check:** probe lines `forced-second-round-k-of-16`. Upstream `select_n` outer `while` loop; there is a cap of ten candidate draws per ring member, and the wallet's `CachedDecoys` adapter adds no limit of its own.
-**Baseline:** NOT protected, measured. Marking 1: narrowed to 15 in about 93% of runs. Marking 8: narrowed to 8 in about 50%. Marking 15: fully revealed in about 6%, abort otherwise.
-**Fix options (owner decision):** tolerate at most a small number of unusable candidates per input and then abort, or abort on any second round. The second leaks nothing per attempt but honest nodes do occasionally return a locked candidate, and every retry feeds class 5.
+**Check:** probe lines `forced-second-round-k-of-16`. Upstream `select_n` outer `while` loop. The wallet's `CachedDecoys` adapter counts unusable replies (locked, undecodable, torsioned, identity key) and refuses the reply once more than `MAX_UNUSABLE_CANDIDATES` (2) have been seen for one input, before any replacement request is sent. Test: `a_node_reporting_many_unusable_candidates_cannot_force_more_requests`.
+**Baseline:** BOUNDED, measured. Marking 1 or 2: a ring is still built and the node narrows the real spend to 15 or 14. Marking 3 or more: abort in 400 of 400 runs, with a `NODE_DECOYS` error. Before the limit, marking 15 fully revealed the real spend in about 6% of runs.
+**Why not zero:** honest nodes do occasionally return a locked candidate, and aborting on every one would force retries that feed class 5.
 
 ## 4. False or truncated output counts
 
 **What:** decoys are placed using the node's cumulative output counts. A node can return counts that are too small, shifted, or cut off early. Decoys then land far from the real spend, which stands out on-chain.
 **Who learns:** everyone reading the chain, permanently. Caused by an actively lying node.
-**Check:** `engine/decoys.rs`: `DistributionCache::validate` (only size and non-decreasing), `prepend` and the first-page branch of `distribution_for_payment` (any shortened oldest page is treated as the complete history). Nothing compares the counts with facts the wallet already holds, such as each owned output's chain index and block height, or the network's known first RingCT block.
-**Baseline:** NOT protected, read from code, not exercised by a test. The false counts are also saved for that node and route.
-**Fix direction:** reject a history that starts later than the network's known RingCT start, and check that each spent output's index falls inside the counts for its own block.
+**Check:** `engine/decoys.rs`. `DistributionCache::validate` refuses a finished history that stops before block 0 and is shorter than `MIN_HISTORY_BLOCKS` (one year). `check_counts` runs before counts are handed to selection and compares them with the wallet's own data: the cumulative count at every saved checkpoint (the wallet counts RingCT outputs itself for its last 128 scanned blocks) and the chain index and block of every owned output. A mismatch returns `EngineError::DecoyData` and `distribution_for_payment` drops the in-memory and saved counts. Tests: `a_history_cut_short_by_the_node_is_refused_and_not_kept`, `counts_that_contradict_the_wallets_own_scan_are_refused`, `an_owned_output_must_lie_inside_the_counts_for_its_own_block`.
+**Baseline:** PARTLY protected, measured by those tests. Before the checks, a history cut to 21 blocks was accepted and saved, and on a synthetic chain moved the median decoy age from 975 blocks to 297,688 with only 7% of decoys under 30 days old (87% with honest counts).
+**Residual:** counts older than the wallet's 128-block window are pinned only at blocks where the wallet owns an output. A node could still misstate older regions for a wallet whose outputs are all very recent. Closing that would need the wallet to keep its own per-block counts for everything it scans.
 
 ## 5. Repeat preparation of the same coin
 

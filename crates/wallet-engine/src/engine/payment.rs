@@ -1,5 +1,54 @@
 use super::*;
+/// The transaction's private key, hex-encoded as other Monero wallets print
+/// it. Returned only if it reproduces the public key inside the signed
+/// transaction, so a key that would not prove this payment is never kept.
+#[allow(clippy::op_ref)] // Keep secret scalar operands behind zeroizing references.
+pub(super) fn transaction_key(
+    outgoing: &Zeroizing<[u8; 32]>,
+    inputs: &[OutputWithDecoys],
+    recipient: &MoneroAddress,
+    transaction: &Transaction,
+) -> Option<Zeroizing<String>> {
+    let keys = inputs
+        .iter()
+        .map(|input| (input.key(), input.commitment().commit()))
+        .collect();
+    let key = TransactionKeys::new(outgoing, keys).next()?;
+    let secret = Zeroizing::new((*key).into());
+    // A payment to a subaddress publishes the key over that address's spend key.
+    let public = if recipient.is_subaddress() {
+        &*secret * recipient.spend().into()
+    } else {
+        &*secret * curve25519_dalek::constants::ED25519_BASEPOINT_TABLE
+    };
+    let extra =
+        monero_wallet::extra::Extra::read(&mut transaction.prefix().extra.as_slice()).ok()?;
+    let (published, additional) = extra.keys()?;
+    if additional.is_some() || published.len() != 1 || published[0] != Point::from(public) {
+        return None;
+    }
+    let bytes = Zeroizing::new(secret.to_bytes());
+    Some(Zeroizing::new(hex::encode(*bytes)))
+}
 impl<T: HttpTransport + Send + 'static> WalletEngine<T> {
+    /// The recorded transaction key of a payment this wallet sent. Read only on
+    /// an explicit request; it is deliberately absent from the routine status.
+    pub fn transaction_key(
+        &self,
+        transaction: &str,
+    ) -> Result<Option<Zeroizing<String>>, EngineError> {
+        self.check()?;
+        if self.spend.is_none() {
+            return Err(EngineError::ViewOnly);
+        }
+        Ok(self
+            .state
+            .payments
+            .iter()
+            .find(|p| p.transaction == transaction)
+            .and_then(|p| p.tx_key.clone())
+            .map(Zeroizing::new))
+    }
     pub async fn prepare(
         &mut self,
         destination: &str,
@@ -85,11 +134,7 @@ impl<T: HttpTransport + Send + 'static> WalletEngine<T> {
         self.preparation
             .set_stage(PreparationStage::FetchingDistribution);
         let counts = self.distribution_for_payment(tip).await?;
-        let decoys = decoys::CachedDecoys {
-            rpc: self.rpc()?,
-            height: (self.state.next_height - 1) as usize,
-            counts,
-        };
+        let height = (self.state.next_height - 1) as usize;
         let input_count = available.len();
         let mut selected_total = 0u64;
         available.sort_by_key(|(_, o)| std::cmp::Reverse(o.commitment().amount));
@@ -114,23 +159,24 @@ impl<T: HttpTransport + Send + 'static> WalletEngine<T> {
             selected_total = selected_total
                 .checked_add(o.commitment().amount)
                 .ok_or(EngineError::Verification)?;
+            // One adapter per input: its unusable-candidate limit is per ring.
+            let decoys = decoys::CachedDecoys::new(self.rpc()?, height, counts.clone());
             selected.push(
-                OutputWithDecoys::new(
-                    &mut OsRng,
-                    &decoys,
-                    16,
-                    (self.state.next_height - 1) as usize,
-                    o,
-                )
-                .await
-                .map_err(|error| {
-                    #[cfg(test)]
-                    eprintln!("regtest decoy selection category: {error}");
-                    match error {
-                        TransactionsError::InterfaceError(error) => EngineError::node_error(error),
-                        _ => EngineError::Node,
-                    }
-                })?,
+                OutputWithDecoys::new(&mut OsRng, &decoys, 16, height, o)
+                    .await
+                    .map_err(|error| {
+                        #[cfg(test)]
+                        eprintln!("regtest decoy selection category: {error}");
+                        if decoys.refused() {
+                            return EngineError::DecoyData;
+                        }
+                        match error {
+                            TransactionsError::InterfaceError(error) => {
+                                EngineError::node_error(error)
+                            }
+                            _ => EngineError::Node,
+                        }
+                    })?,
             );
             ids.push(id);
             if requested.is_none() && selected.len() != input_count {
@@ -197,6 +243,8 @@ impl<T: HttpTransport + Send + 'static> WalletEngine<T> {
             self.preparation.set_stage(PreparationStage::Verifying);
             let verified = verify_transaction(&bytes, intent, &selected, &images, fee)?;
             let transaction = hex::encode(verified.hash());
+            let tx_key = transaction_key(&outgoing, &selected, &recipient, &verified)
+                .map(|key| key.as_str().to_owned());
             let mut nonce = [0; 16];
             OsRng
                 .try_fill_bytes(&mut nonce)
@@ -210,6 +258,7 @@ impl<T: HttpTransport + Send + 'static> WalletEngine<T> {
                 mined_height: None,
                 bytes: hex::encode(&bytes),
                 inputs: ids,
+                tx_key,
             };
             self.check()?;
             self.prepared = Some(Prepared {

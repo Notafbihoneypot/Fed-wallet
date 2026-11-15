@@ -114,11 +114,7 @@ async fn select(
         requests: Mutex::default(),
     };
     let counts = Arc::new((1..=1_001u64).map(|block| block * 10).collect::<Vec<_>>());
-    let adapter = decoys::CachedDecoys {
-        rpc: &node,
-        height: TIP,
-        counts,
-    };
+    let adapter = decoys::CachedDecoys::new(&node, TIP, counts);
     let result = OutputWithDecoys::new(&mut OsRng, &adapter, 16, TIP, output.clone())
         .await
         .map(|input| {
@@ -184,8 +180,10 @@ async fn decoy_audit_probe() {
 
     // 3. Correct-length reply with k blindly chosen candidates reported locked.
     //    "Narrowed to" is how many ring members the node was never asked about
-    //    after round one; the real output is always one of them.
-    for k in [1usize, 2, 8, 15] {
+    //    after round one; the real output is always one of them. BOUNDED means
+    //    a ring was built but the narrowing stayed within the wallet's limit.
+    let limit = decoys::MAX_UNUSABLE_CANDIDATES;
+    for k in [1usize, 2, 3, 8, 15] {
         let (mut aborted, mut built, mut later_has_real) = (0, 0, 0);
         let mut narrowed = BTreeSet::new();
         for _ in 0..400 {
@@ -203,7 +201,13 @@ async fn decoy_audit_probe() {
         }
         println!(
             "RESULT forced-second-round-{k}-of-16 {}: aborted {aborted}/400, ring built silently {built}/400, node narrowed real spend to {narrowed:?} of 16, later request contained real {later_has_real}",
-            verdict(built == 0)
+            if built == 0 {
+                "PROTECTED"
+            } else if narrowed.iter().all(|n| *n + limit >= 16) && later_has_real == 0 {
+                "BOUNDED"
+            } else {
+                "EXPOSED"
+            }
         );
     }
 }

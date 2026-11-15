@@ -37,6 +37,7 @@ fun WalletDashboard(wallet: OfflineUiState, vm: OfflineWalletViewModel, authenti
     var receive by remember { mutableStateOf(false) }
     val send = online.composingPayment
     var receiptId by remember { mutableStateOf<String?>(null) }
+    var receivedId by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(online.receiptToOpen) {
         online.receiptToOpen?.let { receiptId = it; vm.acknowledgeReceiptOpened(it) }
     }
@@ -130,19 +131,15 @@ fun WalletDashboard(wallet: OfflineUiState, vm: OfflineWalletViewModel, authenti
         Surface(shape = PixelShape, color = MaterialTheme.colorScheme.surface, border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)) {
             Column(Modifier.fillMaxWidth().padding(horizontal = 18.dp)) {
                 status!!.history.forEachIndexed { index, transfer ->
-                    var details by remember(transfer.transaction) { mutableStateOf(false) }
-                    TextButton(onClick = { details = !details }, contentPadding = PaddingValues(vertical = 16.dp), modifier = Modifier.fillMaxWidth()) {
+                    // A sent payment opens its receipt; anything else opens the received details.
+                    val sentPayment = status.payments.firstOrNull { it.transaction == transfer.transaction }
+                    TextButton(onClick = { if (sentPayment != null) receiptId = transfer.transaction else receivedId = transfer.transaction },
+                        contentPadding = PaddingValues(vertical = 16.dp), modifier = Modifier.fillMaxWidth()) {
                         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                             Text(if (transfer.sentXmr == null) "↓  Received" else "↑  Sent", color = MaterialTheme.colorScheme.onSurface)
-                            Text("Block ${transfer.height}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text("Block ${transfer.height} · transaction ID and details", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                         Text("${transfer.sentXmr?.let { "− $it" } ?: "+ ${transfer.receivedXmr}"} XMR", style = MaterialTheme.typography.labelMedium)
-                    }
-                    if (details) {
-                        val payment = status.payments.firstOrNull { it.transaction == transfer.transaction }
-                        if (payment != null) TextButton(onClick = { receiptId = payment.transaction }) { Text("Fee, total and confirmations") }
-                        else Text("${(if (status.nextHeight >= transfer.height) status.nextHeight - transfer.height else 0uL)} confirmations · last scanned", style = MaterialTheme.typography.bodySmall)
-                        SelectionContainer { Text(transfer.transaction, Modifier.padding(bottom = 16.dp), style = MaterialTheme.typography.bodySmall) }
                     }
                     if (index < status.history.lastIndex) HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                 }
@@ -201,7 +198,16 @@ fun WalletDashboard(wallet: OfflineUiState, vm: OfflineWalletViewModel, authenti
     }
     receiptId?.let { id ->
         status?.payments?.firstOrNull { it.transaction == id }?.let { payment ->
-            PaymentReceiptSheet(payment, networkName, online, { receiptId = null }, vm::refresh)
+            PaymentReceiptSheet(payment, networkName, online, wallet.transactionKey, wallet.clipboardMessage,
+                canRevealKey = !busy && !watching && wallet.hasVault,
+                revealKey = { vm.requestTransactionKey(payment.transaction); authenticate(VaultAction.RevealTransactionKey) },
+                copyKey = vm::copyTransactionKey, clearCopy = vm::clearSeedClipboard, hideKey = vm::hideTransactionKey,
+                dismiss = { vm.hideTransactionKey(); receiptId = null }, refresh = vm::refresh)
+        }
+    }
+    receivedId?.let { id ->
+        status?.history?.firstOrNull { it.transaction == id }?.let { transfer ->
+            ReceivedTransferSheet(transfer, networkName, status.nextHeight, online.connected && status.synced) { receivedId = null }
         }
     }
     online.review?.let { review ->

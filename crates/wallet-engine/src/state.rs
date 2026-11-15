@@ -38,10 +38,15 @@ pub struct PendingPayment {
     pub mined_height: Option<u64>,
     pub(crate) bytes: String,
     pub(crate) inputs: Vec<String>,
+    /// The transaction's private key, kept so the sender can later prove this
+    /// payment. Absent for payments made before it was recorded.
+    #[serde(default)]
+    pub(crate) tx_key: Option<String>,
 }
 impl Drop for PendingPayment {
     fn drop(&mut self) {
         self.bytes.zeroize();
+        self.tx_key.zeroize();
     }
 }
 #[derive(Clone, Serialize, Deserialize)]
@@ -123,6 +128,7 @@ impl State {
                 || p.inputs.len() > 16
                 || p.inputs.iter().any(|s| s.len() != 64)
                 || p.bytes.len() > 256_000
+                || p.tx_key.as_ref().is_some_and(|k| k.len() != 64)
             {
                 return Err(EngineError::Storage);
             }

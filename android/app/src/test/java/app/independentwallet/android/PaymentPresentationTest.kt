@@ -8,7 +8,12 @@ import org.junit.Test
 
 class PaymentPresentationTest {
     private val pending = WalletPayment(transaction = "public-test-id", destination = "public-fixture", amountXmr = "0.9",
-        feeXmr = "0.1", totalXmr = "1", minedHeight = null, confirmations = 0uL)
+        feeXmr = "0.1", totalXmr = "1", minedHeight = null, confirmations = 0uL, hasTransactionKey = false)
+    @Test fun confirmationsCountFromTheLastScannedBlockAndNeverUnderflow() {
+        assertEquals(1uL, scannedConfirmations(nextHeight = 11uL, height = 10uL))
+        assertEquals(0uL, scannedConfirmations(nextHeight = 10uL, height = 10uL))
+        assertEquals(0uL, scannedConfirmations(nextHeight = 5uL, height = 10uL))
+    }
     @Test fun nodeAcceptanceAndLostReplyAreNeverShownAsBlockConfirmation() {
         assertEquals("Submitted · awaiting confirmation", paymentStatusTitle(pending, SubmissionState.Accepted))
         assertEquals("Submission reply unknown", paymentStatusTitle(pending, SubmissionState.Unknown))

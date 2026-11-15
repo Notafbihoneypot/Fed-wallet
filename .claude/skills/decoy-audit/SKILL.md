@@ -22,7 +22,7 @@ An audit answers both with evidence. A claim that was measured and a claim that 
    bash .claude/skills/decoy-audit/scripts/run_probe.sh
    ```
 
-   It temporarily installs `probe/decoy_probe.rs` as a test module, runs the wallet's real decoy adapter and the pinned upstream selection against a misbehaving fake node, prints one `RESULT` line per behaviour, and restores the engine file exactly as it was. `PROTECTED` or `EXPOSED` on each line describes that behaviour only.
+   It temporarily installs `probe/decoy_probe.rs` as a test module, runs the wallet's real decoy adapter and the pinned upstream selection against a misbehaving fake node, prints one `RESULT` line per behaviour, and restores the engine file exactly as it was. `PROTECTED`, `BOUNDED` or `EXPOSED` on each line describes that behaviour only. `BOUNDED` means the node could still narrow the real spend, but only within the wallet's fixed limit.
 
    If it fails to compile, the engine's internals moved. Update the probe to match. Do not delete a scenario to make it build, because a silently dropped scenario reads later as "nothing found".
 

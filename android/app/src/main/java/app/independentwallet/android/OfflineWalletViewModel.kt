@@ -25,7 +25,7 @@ import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.isActive
 
 enum class WalletStage { Loading, Setup, Locked, Backup, Verify, Open, Recovery, Keys }
-enum class VaultAction { StartSetup, Save, Unlock, DiscardSetup, Send, RetrySend, RevealSeed, MainnetCopy, RevealKeys, ConfigureSecurity, EnableBiometric }
+enum class VaultAction { StartSetup, Save, Unlock, DiscardSetup, Send, RetrySend, RevealSeed, MainnetCopy, RevealKeys, ConfigureSecurity, EnableBiometric, RevealTransactionKey }
 
 internal fun allowedPreviewWallet(info: OfflineWalletInfo): Boolean =
     info.network == KeyNetwork.STAGENET || info.network == KeyNetwork.MAINNET
@@ -42,6 +42,7 @@ data class OfflineUiState(
     val wallets: List<WalletEntry> = emptyList(), val walletName:String = "My wallet",
     val security:SecurityStatus=SecurityStatus(), val securityAuthorized:Boolean=false,
     val keys:SensitiveKeys?=null, val wiping:Boolean=false,
+    val transactionKey: SensitiveTransactionKey? = null,
     val creationNetwork: KeyNetwork = KeyNetwork.MAINNET,
     val mainnetSaved: Boolean = false,
     val stage: WalletStage = WalletStage.Loading,
@@ -85,6 +86,8 @@ class OfflineWalletViewModel(application: Application) : AndroidViewModel(applic
     private var pendingCreation: (() -> OfflineWalletSession)? = null
     private var pendingCreationCleanup: (() -> Unit)? = null
     private var pendingMainnetHeight: ULong? = null
+    private var pendingTransactionKey: String? = null
+    private var transactionKeyTimeout: Job? = null
     private val seedClipboard = AndroidSeedClipboard(application)
     private val mutable = MutableStateFlow(OfflineUiState(walletSlot = walletSlot))
     val state = mutable.asStateFlow()
@@ -219,6 +222,52 @@ class OfflineWalletViewModel(application: Application) : AndroidViewModel(applic
         catch(_:Exception){if(ticket==epoch)mutable.update{it.copy(error="Security setup could not finish. Existing data was kept; authenticate again to resume PIN setup.")}}
         finally{if(ticket==epoch){clearSecurityAuthorization();mutable.update{it.copy(busy=false,securityAuthorized=false)};userInteraction()};refreshSecurity()}}
     }
+    /** Names the one payment whose key the next authentication may show. */
+    fun requestTransactionKey(transaction: String) {
+        hideTransactionKey()
+        pendingTransactionKey = transaction
+    }
+
+    /** Read from the encrypted local journal only; needs no node and starts no connection. */
+    private fun revealTransactionKeyAuthenticated(ticket: Long) {
+        val transaction = pendingTransactionKey.also { pendingTransactionKey = null }
+        val owner = session
+        mutable.update { it.copy(busy = false) }
+        userInteraction()
+        if (canPollNetwork(mutable.value, false)) syncLoop.start()
+        if (transaction == null || owner == null) return
+        val directory = java.io.File(getApplication<Application>().noBackupFilesDir, "chain-v1").absolutePath
+        viewModelScope.launch {
+            val key = try { withContext(Dispatchers.IO) { owner.transactionKey(directory, transaction) } }
+                catch (cancelled: CancellationException) { throw cancelled }
+                catch (_: Exception) { null }
+            if (ticket != epoch || session !== owner || mutable.value.stage != WalletStage.Open || !appVisible) return@launch
+            if (key == null) {
+                mutable.update { it.copy(error = "This payment's transaction key is not available on this device.") }
+                return@launch
+            }
+            mutable.update { it.copy(transactionKey = SensitiveTransactionKey(transaction, key), error = null) }
+            transactionKeyTimeout?.cancel()
+            transactionKeyTimeout = viewModelScope.launch { delay(60_000); hideTransactionKey() }
+        }
+    }
+
+    fun hideTransactionKey() {
+        transactionKeyTimeout?.cancel()
+        pendingTransactionKey = null
+        val shown = mutable.value.transactionKey ?: return
+        shown.clear()
+        mutable.update { it.copy(transactionKey = null, clipboardMessage = null) }
+    }
+
+    /** Same sensitive, clearable clip as wallet keys. Never cleared on a timer, lock or exit. */
+    fun copyTransactionKey() {
+        val text = mutable.value.transactionKey?.text()?.takeIf { it.isNotEmpty() } ?: return
+        val copied = seedClipboard.copy(text)
+        mutable.update { it.copy(clipboardMessage = if (copied) "Copied. Use Clear copy when finished." else "Clipboard access failed.") }
+        userInteraction()
+    }
+
     private fun revealKeysAuthenticated(){
         try{disconnect();val keys=SensitiveKeys(checkNotNull(session).exportKeys());recoveryShownAt=SystemClock.elapsedRealtime()
             mutable.update{it.copy(stage=WalletStage.Keys,keys=keys,busy=false,generation=it.generation+1)}
@@ -476,6 +525,8 @@ class OfflineWalletViewModel(application: Application) : AndroidViewModel(applic
             (action == VaultAction.RevealSeed && (before.stage != WalletStage.Open || !before.hasVault ||
                 before.info?.mode != KeyWalletMode.SOFTWARE || before.info?.seedFormat == null || networkInFlight)) ||
             (action == VaultAction.RevealKeys && (before.stage != WalletStage.Open || !before.hasVault || networkInFlight)) ||
+            (action == VaultAction.RevealTransactionKey && (before.stage != WalletStage.Open || !before.hasVault || pendingTransactionKey == null ||
+                before.info?.mode != KeyWalletMode.SOFTWARE || networkInFlight || before.online.composingPayment || before.online.review != null || before.online.submitting)) ||
             (action == VaultAction.ConfigureSecurity && (before.stage !in listOf(WalletStage.Open,WalletStage.Locked,WalletStage.Setup) || networkInFlight || setupLease!=null || setupRetiring>0 || setupWrite?.isActive==true)) ||
             (action == VaultAction.EnableBiometric && !canManageSecurity()) ||
             (action == VaultAction.MainnetCopy && (before.stage != WalletStage.Open || !before.hasVault ||
@@ -510,6 +561,7 @@ class OfflineWalletViewModel(application: Application) : AndroidViewModel(applic
         if (!approved) {
             clearSecurityAuthorization()
             pendingMainnetHeight = null
+            pendingTransactionKey = null
             pendingCreation = null; pendingCreationCleanup?.invoke(); pendingCreationCleanup = null
             pendingDiscard = null
             mutable.update { it.copy(busy = false, securityAuthorized=false,error = "Authentication was cancelled.") }
@@ -539,6 +591,7 @@ class OfflineWalletViewModel(application: Application) : AndroidViewModel(applic
             return
         }
         if(action==VaultAction.RevealKeys){revealKeysAuthenticated();return}
+        if (action == VaultAction.RevealTransactionKey) { revealTransactionKeyAuthenticated(ticket); return }
         if(action==VaultAction.ConfigureSecurity){
             disconnect();securityAuthorizedAt=SystemClock.elapsedRealtime();securityGrant=locks.securityGrant()
             securityExpiry?.cancel();securityExpiry=viewModelScope.launch{delay(SecurityAuthorization.LIFETIME_MS);clearSecurityAuthorization();mutable.update{it.copy(securityAuthorized=false)}}
@@ -784,6 +837,7 @@ class OfflineWalletViewModel(application: Application) : AndroidViewModel(applic
             if (backgroundLocked) return
             backgroundLocked = true
             locks.lock();clearSecurityAuthorization();mutable.value.keys?.clear()
+            hideTransactionKey()
             inactivityTimeout?.cancel(); inactivity.clear()
             mutable.value.phrase?.clear()
             mutable.update { it.copy(stage = WalletStage.Locked, info = null, phrase = null, keys=null,securityAuthorized=false,
@@ -804,6 +858,7 @@ class OfflineWalletViewModel(application: Application) : AndroidViewModel(applic
 
     private fun lockInternal() {
         locks.lock();clearSecurityAuthorization();mutable.value.keys?.clear()
+        hideTransactionKey()
         ++preferenceRevision
         rememberedConnection = null
         pendingMainnetHeight = null

@@ -1,6 +1,6 @@
 # Randomness map
 
-Reviewed 14 November 2026 at wallet 0.11.11 with `monero-wallet 0.2.0`, `monero-clsag 0.1.0`, `monero-bulletproofs 0.1.0`, `monero-ed25519 0.1.0`, `rand_core 0.6.4`, `getrandom 0.2.17`. Regenerate the raw list with `scripts/rng_inventory.sh` and re-check any entry before relying on it.
+Reviewed 15 November 2026 at wallet 0.11.11 plus the unreleased transaction-key change, with `monero-wallet 0.2.0`, `monero-clsag 0.1.0`, `monero-bulletproofs 0.1.0`, `monero-ed25519 0.1.0`, `rand_core 0.6.4`, `getrandom 0.2.17`. Regenerate the raw list with `scripts/rng_inventory.sh` and re-check any entry before relying on it.
 
 This records what the code does. It is not an independent audit, and none is claimed.
 
@@ -28,14 +28,14 @@ Where it is used:
 
 **Why it looks bad:** "transaction secrets come from a seeded PRNG" is exactly what a backdoored or weakened generator looks like. If the seed were guessable, an observer could rebuild the transaction's secrets and read its recipient and amount.
 
-**What is true:** the generator is only as unpredictable as its seed, and this wallet's seed is 32 fresh bytes from `OsRng` drawn inside `prepare_payment` for each preparation (the variable `outgoing`). It is held in a zeroizing buffer, passed only to `SignableTransaction::new`, and never stored, logged, sent or derived from anything else. So the output is a deterministic expansion of 256 operating-system random bytes, which is a standard construction. Upstream designed it this way so that several signers can agree on the same transaction and so a sender can re-derive keys later.
+**What is true:** the generator is only as unpredictable as its seed, and this wallet's seed is 32 fresh bytes from `OsRng` drawn inside `prepare_payment` for each preparation (the variable `outgoing`). It is held in a zeroizing buffer, passed only to `SignableTransaction::new` and to the function that re-derives this payment's transaction key, and is itself never stored, logged, sent or derived from anything else. So the output is a deterministic expansion of 256 operating-system random bytes, which is a standard construction. Upstream designed it this way so that several signers can agree on the same transaction and so a sender can re-derive keys later.
 
-**Check:** `grep -rn outgoing crates --include=*.rs` shows every use (creation and two constructor calls). Read `seeded_rng` in the pinned `monero-wallet` source to see everything that goes into the hash.
+**Check:** `grep -rn outgoing crates --include=*.rs` shows every use (creation, two constructor calls and the transaction-key derivation). Read `seeded_rng` in the pinned `monero-wallet` source to see everything that goes into the hash.
 
 **Limits:**
 - Safety depends on the caller. Upstream's own documentation says the value must be treated as a private key and must not be reused across different transactions that spend the same inputs. Any future change that stores, reuses or derives `outgoing` would break this and must be treated as a security change.
 - Within one preparation, the fee probe for "send max" and the final transaction share the seed and the inputs, so they would derive the same keys. The probe is never signed, serialized or sent. If that ever changes, it becomes the reuse upstream warns about.
-- Because the seed is thrown away, the wallet cannot re-derive transaction keys afterwards (for example for a payment proof). That is a missing feature, not a leak.
+- The seed is thrown away, but one value derived from it is kept: the transaction key, the first output of the seeded generator. `payment.rs::transaction_key` re-derives it, keeps it only if it reproduces the public key inside the signed transaction, and stores it in the encrypted journal so the sender can prove the payment later. With the transaction ID and the recipient's address, that key lets someone confirm the amount sent to that address; it cannot spend, and it does not reveal the seed or any other payment's key. It is shown only after device authentication.
 
 ### Signature nonces
 
