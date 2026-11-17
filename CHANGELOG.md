@@ -1,8 +1,12 @@
 # Changelog
 
-## Unreleased: decoy-data checks and transaction details
+## 0.11.12 preview candidate: decoy-data checks, receipts and transaction details
 
-Host-tested only (Rust workspace tests and lints, Kotlin compile, 164 Android unit tests). Not yet run on a device, against a live node, or through `scripts/test-regtest.py`; no release build or version change.
+Host-tested (Rust workspace tests and lints, Kotlin compile, Android unit tests) and built as an unsigned release APK. Not yet run on a device, against a live node, or through `scripts/test-regtest.py`.
+
+- Sent-payment receipts gain a **Decoys** section: each input's 16 ring members, as chain output positions read from the payment's own signed bytes on the phone (no network). The real coin is never marked. It is shown until the signed bytes are wiped 128 blocks after confirmation.
+- Sent and received details gain **Copy block explorer link** (xmrchain.net, or stagenet.xmrchain.net). The wallet never opens it; the sheet says a website loading it sees the transaction ID with the user's IP address.
+- New test `every_signed_ring_hides_the_real_output_among_fifteen_requested_decoys`: 20 signed transactions each carry 16 distinct ring members, the real output exactly once and at varying positions, all from the single node request that also carried the real output.
 
 - Decoy counts from the node are now checked against what the wallet holds itself before any decoy is chosen: the cumulative RingCT output count of every block in its last 128 scanned blocks, and the chain index and block of every output it owns. Counts that disagree are refused with a new `NODE_DECOYS` error, and nothing from that node's count history is kept.
 - A count history that stops before block 0 must cover at least one year of blocks. Before, a node could present its last few blocks as the whole history; measured on a synthetic chain, that moved the median decoy age from about 1.4 days to about 13 months and left a recent spend visibly alone.

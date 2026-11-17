@@ -98,3 +98,25 @@ pub(crate) fn verify_transaction(
     }
     Ok(tx)
 }
+/// Each input's ring as chain output indices, decoded from signed bytes.
+pub(crate) fn ring_members(mut bytes: &[u8]) -> Option<Vec<Vec<u64>>> {
+    let tx: Transaction = Transaction::read(&mut bytes).ok()?;
+    tx.prefix()
+        .inputs
+        .iter()
+        .map(|input| {
+            let Input::ToKey { key_offsets, .. } = input else {
+                return None;
+            };
+            // Offsets are relative to the previous member; the first is absolute.
+            let mut index = 0u64;
+            key_offsets
+                .iter()
+                .map(|offset| {
+                    index = index.checked_add(*offset)?;
+                    Some(index)
+                })
+                .collect()
+        })
+        .collect()
+}

@@ -50,8 +50,11 @@ fun PaymentReceiptSheet(payment: WalletPayment, network: String, online: OnlineU
             Text("Transaction ID", style = MaterialTheme.typography.labelLarge)
             SelectionContainer { Text(payment.transaction, style = MaterialTheme.typography.bodySmall) }
             TextButton(onClick = { TransactionCopy.public(context, "Monero transaction ID", payment.transaction, "Transaction ID copied") }) { Text("Copy transaction ID") }
+            ExplorerLinkCopy(network, payment.transaction)
             HorizontalDivider()
             TransactionKeySection(payment, transactionKey, clipboardMessage, canRevealKey, revealKey, copyKey, clearCopy, hideKey)
+            HorizontalDivider()
+            DecoySection(payment.ringMembers)
             HorizontalDivider()
             if (payment.minedHeight != null) Text("Included in block ${payment.minedHeight}", style = MaterialTheme.typography.bodySmall)
             else Text("A node accepting the payment is not a block confirmation. Inputs stay reserved while confirmation is pending. If the submission reply was lost, retry only this exact payment.", style = MaterialTheme.typography.bodySmall)
@@ -99,6 +102,38 @@ internal const val transactionKeyPurpose =
 internal const val transactionKeyUnavailable =
     "Not recorded for this payment. Payments sent before this version did not keep their key, and it cannot be rebuilt afterwards."
 
+/** Copy only: opening it would show the explorer and the network this transaction ID beside the user's IP address. */
+internal fun explorerLink(network: String, transaction: String): String =
+    if (network == "Mainnet") "https://xmrchain.net/tx/$transaction" else "https://stagenet.xmrchain.net/tx/$transaction"
+
+@Composable
+private fun ExplorerLinkCopy(network: String, transaction: String) {
+    val context = LocalContext.current
+    TextButton(onClick = { TransactionCopy.public(context, "Block explorer link", explorerLink(network, transaction), "Explorer link copied") }) { Text("Copy block explorer link") }
+    Text("The wallet never opens it. A website that loads it sees this transaction ID with your IP address; open it in Tor Browser.", style = MaterialTheme.typography.bodySmall)
+}
+
+/** Ring members read from this payment's own signed bytes; which member is the real coin is never shown. */
+@Composable
+private fun DecoySection(rings: List<List<ULong>>) {
+    Text("Decoys", style = MaterialTheme.typography.labelLarge)
+    if (rings.isEmpty()) {
+        Text(decoysUnavailable, style = MaterialTheme.typography.bodySmall)
+        return
+    }
+    Text(decoySummary, style = MaterialTheme.typography.bodySmall)
+    rings.forEachIndexed { input, ring ->
+        Text("Input ${input + 1} · ${ring.size} ring members", style = MaterialTheme.typography.labelMedium)
+        SelectionContainer { Text(ring.joinToString(", "), style = MaterialTheme.typography.bodySmall) }
+    }
+}
+
+internal const val decoySummary =
+    "Each input was signed with its ring: your coin plus decoys (15 decoys in a 16-member ring). The numbers are chain output positions read from the signed transaction; this screen never shows which one is yours. A block explorer lists the same ring size for this transaction ID."
+
+internal const val decoysUnavailable =
+    "Read from the signed transaction, which this phone keeps until about 128 blocks after confirmation. Use the explorer link to check the ring members."
+
 /** How many blocks include or follow the transfer, from the last completed scan. */
 internal fun scannedConfirmations(nextHeight: ULong, height: ULong): ULong = if (nextHeight > height) nextHeight - height else 0uL
 
@@ -119,6 +154,7 @@ fun ReceivedTransferSheet(transfer: WalletTransfer, network: String, nextHeight:
             Text("Transaction ID", style = MaterialTheme.typography.labelLarge)
             SelectionContainer { Text(transfer.transaction, style = MaterialTheme.typography.bodySmall) }
             TextButton(onClick = { TransactionCopy.public(context, "Monero transaction ID", transfer.transaction, "Transaction ID copied") }) { Text("Copy transaction ID") }
+            ExplorerLinkCopy(network, transfer.transaction)
             HorizontalDivider()
             Text("Transaction key", style = MaterialTheme.typography.labelLarge)
             Text("Only the sender's wallet has the key for a payment you received. Ask the sender for it if you need proof of this payment.", style = MaterialTheme.typography.bodySmall)

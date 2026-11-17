@@ -8,7 +8,7 @@ import org.junit.Test
 
 class PaymentPresentationTest {
     private val pending = WalletPayment(transaction = "public-test-id", destination = "public-fixture", amountXmr = "0.9",
-        feeXmr = "0.1", totalXmr = "1", minedHeight = null, confirmations = 0uL, hasTransactionKey = false)
+        feeXmr = "0.1", totalXmr = "1", minedHeight = null, confirmations = 0uL, hasTransactionKey = false, ringMembers = emptyList())
     @Test fun confirmationsCountFromTheLastScannedBlockAndNeverUnderflow() {
         assertEquals(1uL, scannedConfirmations(nextHeight = 11uL, height = 10uL))
         assertEquals(0uL, scannedConfirmations(nextHeight = 10uL, height = 10uL))

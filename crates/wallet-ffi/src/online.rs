@@ -92,6 +92,8 @@ pub struct WalletPayment {
     /// Whether the transaction key was recorded. The key itself is never
     /// part of a status; it is read by `transaction_key` on request.
     pub has_transaction_key: bool,
+    /// Chain output indices of each input's ring; empty once the signed bytes are wiped.
+    pub ring_members: Vec<Vec<u64>>,
 }
 #[derive(uniffi::Record)]
 pub struct WalletSyncStatus {
@@ -145,6 +147,7 @@ impl From<wallet_engine::SyncStatus> for WalletSyncStatus {
                     mined_height: p.mined_height,
                     confirmations: p.confirmations,
                     has_transaction_key: p.has_transaction_key,
+                    ring_members: p.ring_members,
                 })
                 .collect(),
             pending: s.pending.as_ref().map(|p| PendingTransfer {

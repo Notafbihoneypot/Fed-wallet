@@ -288,3 +288,72 @@ async fn the_recorded_transaction_key_proves_the_payment_and_is_never_a_wrong_ke
         Err(EngineError::ViewOnly)
     ));
 }
+
+/// What the receipt's Decoys section shows: the rings in the signed bytes.
+#[tokio::test]
+async fn every_signed_ring_hides_the_real_output_among_fifteen_requested_decoys() {
+    let wallet = OfflineWallet::restore_spend_key(
+        KeyNetwork::Stagenet,
+        Zeroizing::new(format!("01{}", "00".repeat(31))),
+        0,
+    )
+    .unwrap();
+    let dir = tempfile::tempdir().unwrap();
+    let mut engine =
+        WalletEngine::<NoNetwork>::new(&wallet, dir.path(), CancellationToken::new()).unwrap();
+    let output = owned_output(&engine, 1_000_000_000_000);
+    let recipient = MoneroAddress::from_str(engine.network, &wallet.details().address).unwrap();
+    let counts = std::sync::Arc::new((1..=1_001u64).map(|block| block * 10).collect::<Vec<_>>());
+    let mut positions = BTreeSet::new();
+    for round in 0..20u8 {
+        let chain = Chain::new([output.key(), output.commitment().commit()], 0);
+        let adapter = decoys::CachedDecoys::new(&chain, 1_000, counts.clone());
+        let input = OutputWithDecoys::new(&mut OsRng, &adapter, 16, 1_000, output.clone())
+            .await
+            .unwrap();
+        let bytes = SignableTransaction::new(
+            RctType::ClsagBulletproofPlus,
+            Zeroizing::new([7; 32]),
+            vec![input],
+            vec![(recipient, 1_000_000)],
+            Change::new(engine.pair.clone(), None),
+            vec![],
+            FeeRate::new(20_000, 10_000).unwrap(),
+        )
+        .unwrap()
+        .sign(&mut OsRng, engine.spend.as_ref().unwrap())
+        .unwrap()
+        .serialize();
+        let id = format!("{round:02x}").repeat(32);
+        engine.state.payments = vec![PendingPayment {
+            transaction: id.clone(),
+            destination: wallet.details().address,
+            amount_atomic: 1_000_000,
+            fee_atomic: 1,
+            mined_height: None,
+            bytes: hex::encode(&bytes),
+            inputs: vec!["0d".repeat(32)],
+            tx_key: None,
+        }];
+        let status = engine.status().unwrap();
+        let rings = &status
+            .payments
+            .iter()
+            .find(|p| p.transaction == id)
+            .unwrap()
+            .ring_members;
+        assert_eq!(rings.len(), 1);
+        let ring = &rings[0];
+        // 16 distinct members, the real output exactly once.
+        assert_eq!(ring.len(), 16);
+        assert!(ring.windows(2).all(|pair| pair[0] < pair[1]));
+        positions.insert(ring.iter().position(|&i| i == REAL_INDEX).unwrap());
+        // Every decoy came from the one request that also carried the real
+        // output, so the node cannot tell the real one apart from the decoys.
+        let requests = chain.requests.lock().unwrap();
+        assert_eq!(requests.len(), 1);
+        assert!(ring.iter().all(|i| requests[0].contains(i)));
+    }
+    // The real output does not sit at a fixed ring position.
+    assert!(positions.len() > 1);
+}

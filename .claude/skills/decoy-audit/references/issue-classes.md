@@ -46,7 +46,7 @@ Paths under "upstream" are inside the pinned `monero-wallet` crate source (see t
 
 **What:** the reference wallet's 2021 bugs (recent spends under-selected) and the 2023 off-by-one that could never pick an output exactly ten blocks old.
 **Who learns:** everyone reading the chain, statistically.
-**Check:** upstream `select_n`: the bound is taken ten entries from the end of the counts (includes ten-block-old outputs), the recent-window branch exists, gamma parameters 19.28 and 1/1.61. Ring size is 16 in `prepare_payment` and re-checked on the signed bytes in `verify.rs`.
+**Check:** upstream `select_n`: the bound is taken ten entries from the end of the counts (includes ten-block-old outputs), the recent-window branch exists, gamma parameters 19.28 and 1/1.61. Ring size is 16 in `prepare_payment` and re-checked on the signed bytes in `verify.rs`. Test `every_signed_ring_hides_the_real_output_among_fifteen_requested_decoys` decodes signed bytes the way the receipt does: 16 distinct members, real output once at varying positions, every member from the request that carried the real output.
 **Baseline:** protected, read from code.
 
 ## 7. Unusable decoys

@@ -2,7 +2,7 @@ use crate::{
     state::{Checkpoint, HistoryEntry, OutputRecord, PendingPayment},
     store::Store,
     transport::NodeTransport,
-    verify::verify_transaction,
+    verify::{ring_members, verify_transaction},
     EngineError, State,
 };
 use curve25519_dalek::traits::IsIdentity as _;
@@ -64,6 +64,8 @@ pub struct PaymentStatus {
     pub confirmations: u64,
     /// Whether this payment's transaction key was recorded when it was sent.
     pub has_transaction_key: bool,
+    /// Each input's ring members, read from the signed bytes while they are kept.
+    pub ring_members: Vec<Vec<u64>>,
 }
 pub struct PaymentReview {
     pub send_max: bool,
@@ -425,6 +427,11 @@ impl<T: HttpTransport + Send + 'static> WalletEngine<T> {
                             .mined_height
                             .map_or(0, |h| self.state.next_height.saturating_sub(h)),
                         has_transaction_key: p.tx_key.is_some(),
+                        ring_members: hex::decode(&p.bytes)
+                            .ok()
+                            .map(Zeroizing::new)
+                            .and_then(|bytes| ring_members(&bytes))
+                            .unwrap_or_default(),
                     })
                 })
                 .collect::<Result<Vec<_>, EngineError>>()?,
