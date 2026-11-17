@@ -36,11 +36,11 @@ Paths under "upstream" are inside the pinned `monero-wallet` crate source (see t
 
 ## 5. Repeat preparation of the same coin
 
-**What:** every preparation picks fresh decoys and sends the real output's index again. Two preparations of the same coin share exactly one index.
+**What:** if every preparation picked fresh decoys and sent the real output's index again, two preparations of the same coin would share exactly one index.
 **Who learns:** a node that only logs. Near-certain reveal after two preparations.
-**Check:** `engine/payment.rs::prepare_payment` calls `OutputWithDecoys::new` each time; nothing keeps the ring. Review lifetime is 300 seconds. Confirm the app never re-prepares on its own (`quotePayment` in the Android view model is user-initiated).
-**Baseline:** NOT protected, read from code. Same behaviour as the reference wallet with a remote node.
-**Constraint:** the obvious fix, reusing the ring, is forbidden by the `AGENTS.md` rule against caching or replaying ring requests. Owner decision.
+**Check:** `engine/payment.rs::prepare_payment` reuses `reusable_ring` before selecting, and `keep_ring` saves a fresh ring in the encrypted journal before it is used. Reuse lasts `RING_REUSE_BLOCKS` (720) and requires an exact match with the output; `State::rollback` drops rings a reorg reaches and `mark_spent` drops a spent output's ring. Test: `a_retry_reuses_the_ring_the_node_already_saw`.
+**Baseline:** protected within 720 blocks, measured by that test (one node request across retries and a restart). Since 17 November 2026; before, NOT protected.
+**Residual:** a retry more than 720 blocks (about one day) later selects again and repeats the exposure. A selection the wallet aborts (for example class 3's limit) saves no ring, so retrying on the same node exposes the real output again; switch node after `NODE_DECOYS`.
 
 ## 6. Historical selection bugs
 

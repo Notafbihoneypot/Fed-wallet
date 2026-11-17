@@ -30,6 +30,9 @@ pub(super) fn transaction_key(
     let bytes = Zeroizing::new(secret.to_bytes());
     Some(Zeroizing::new(hex::encode(*bytes)))
 }
+/// Blocks a ring stays reusable for its output, about one day. Older rings
+/// would lack recent members and stand out on-chain.
+pub(super) const RING_REUSE_BLOCKS: u64 = 720;
 impl<T: HttpTransport + Send + 'static> WalletEngine<T> {
     /// The recorded transaction key of a payment this wallet sent. Read only on
     /// an explicit request; it is deliberately absent from the routine status.
@@ -48,6 +51,55 @@ impl<T: HttpTransport + Send + 'static> WalletEngine<T> {
             .find(|p| p.transaction == transaction)
             .and_then(|p| p.tx_key.clone())
             .map(Zeroizing::new))
+    }
+    /// The ring already sent to the node for this output, if it is fresh and
+    /// matches the output exactly. Selecting again would put the real output
+    /// in a second request beside different decoys, revealing it.
+    pub(super) fn reusable_ring(
+        &self,
+        id: &str,
+        output: &WalletOutput,
+        height: u64,
+    ) -> Option<OutputWithDecoys> {
+        let record = self.state.rings.get(id)?;
+        if height < record.height || height - record.height > RING_REUSE_BLOCKS {
+            return None;
+        }
+        let bytes = Zeroizing::new(hex::decode(&record.bytes).ok()?);
+        let ring = OutputWithDecoys::read(&mut bytes.as_slice()).ok()?;
+        let decoys = ring.decoys();
+        (ring.key() == output.key()
+            && ring.key_offset() == output.key_offset()
+            && ring.commitment().commit() == output.commitment().commit()
+            && decoys.ring().len() == 16
+            && decoys.positions().get(usize::from(decoys.signer_index()))
+                == Some(&output.index_on_blockchain()))
+        .then_some(ring)
+    }
+    /// Saves a ring the node has just seen, before it is used, so any retry
+    /// reuses it. Rings of spent, missing or expired outputs are dropped.
+    pub(super) fn keep_ring(
+        &mut self,
+        id: &str,
+        ring: &OutputWithDecoys,
+        height: u64,
+    ) -> Result<(), EngineError> {
+        let mut next = self.state.clone();
+        next.rings.retain(|key, r| {
+            height.saturating_sub(r.height) <= RING_REUSE_BLOCKS
+                && next
+                    .outputs
+                    .get(key)
+                    .is_some_and(|o| o.spent_height.is_none())
+        });
+        next.rings.insert(
+            id.to_owned(),
+            crate::state::RingRecord {
+                height,
+                bytes: hex::encode(Zeroizing::new(ring.serialize()).as_slice()),
+            },
+        );
+        self.commit(next)
     }
     pub async fn prepare(
         &mut self,
@@ -159,25 +211,31 @@ impl<T: HttpTransport + Send + 'static> WalletEngine<T> {
             selected_total = selected_total
                 .checked_add(o.commitment().amount)
                 .ok_or(EngineError::Verification)?;
-            // One adapter per input: its unusable-candidate limit is per ring.
-            let decoys = decoys::CachedDecoys::new(self.rpc()?, height, counts.clone());
-            selected.push(
-                OutputWithDecoys::new(&mut OsRng, &decoys, 16, height, o)
-                    .await
-                    .map_err(|error| {
-                        #[cfg(test)]
-                        eprintln!("regtest decoy selection category: {error}");
-                        if decoys.refused() {
-                            return EngineError::DecoyData;
-                        }
-                        match error {
-                            TransactionsError::InterfaceError(error) => {
-                                EngineError::node_error(error)
+            let input = match self.reusable_ring(&id, &o, height as u64) {
+                Some(ring) => ring,
+                None => {
+                    // One adapter per input: its unusable-candidate limit is per ring.
+                    let decoys = decoys::CachedDecoys::new(self.rpc()?, height, counts.clone());
+                    let ring = OutputWithDecoys::new(&mut OsRng, &decoys, 16, height, o)
+                        .await
+                        .map_err(|error| {
+                            #[cfg(test)]
+                            eprintln!("regtest decoy selection category: {error}");
+                            if decoys.refused() {
+                                return EngineError::DecoyData;
                             }
-                            _ => EngineError::Node,
-                        }
-                    })?,
-            );
+                            match error {
+                                TransactionsError::InterfaceError(error) => {
+                                    EngineError::node_error(error)
+                                }
+                                _ => EngineError::Node,
+                            }
+                        })?;
+                    self.keep_ring(&id, &ring, height as u64)?;
+                    ring
+                }
+            };
+            selected.push(input);
             ids.push(id);
             if requested.is_none() && selected.len() != input_count {
                 continue;

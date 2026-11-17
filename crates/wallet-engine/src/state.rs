@@ -49,6 +49,21 @@ impl Drop for PendingPayment {
         self.tx_key.zeroize();
     }
 }
+/// A ring already sent to the node for one owned output. Reusing it on a
+/// retry keeps the node from intersecting two requests that both carry the
+/// real output beside different decoys.
+#[derive(Clone, Serialize, Deserialize)]
+pub(crate) struct RingRecord {
+    /// Last scanned block when the ring was selected.
+    pub height: u64,
+    /// Hex `OutputWithDecoys` serialization.
+    pub bytes: String,
+}
+impl Drop for RingRecord {
+    fn drop(&mut self) {
+        self.bytes.zeroize();
+    }
+}
 #[derive(Clone, Serialize, Deserialize)]
 pub struct State {
     pub(crate) version: u8,
@@ -67,6 +82,8 @@ pub struct State {
     pub(crate) selected_subaddress: u32,
     #[serde(default)]
     pub(crate) subaddress_labels: BTreeMap<u32, String>,
+    #[serde(default)]
+    pub(crate) rings: BTreeMap<String, RingRecord>,
 }
 fn first_subaddress() -> u32 {
     1
@@ -87,6 +104,7 @@ impl State {
             created_subaddress: 1,
             selected_subaddress: 1,
             subaddress_labels: BTreeMap::new(),
+            rings: BTreeMap::new(),
         }
     }
     pub(crate) fn validate(&self) -> Result<(), EngineError> {
@@ -133,6 +151,14 @@ impl State {
                 return Err(EngineError::Storage);
             }
         }
+        if self.rings.len() > 50_000 {
+            return Err(EngineError::Storage);
+        }
+        for (key, r) in &self.rings {
+            if key.len() != 64 || r.bytes.len() > 16_384 || r.height >= self.next_height {
+                return Err(EngineError::Storage);
+            }
+        }
         if self
             .checkpoints
             .windows(2)
@@ -158,6 +184,8 @@ impl State {
                 p.mined_height = None;
             }
         }
+        // A reorged block may hold one of the ring's members.
+        self.rings.retain(|_, r| r.height < next_height);
         self.checkpoints.retain(|p| p.height < next_height);
         self.next_height = next_height;
         self.next_output = self
@@ -181,6 +209,7 @@ impl State {
             .spent_height = Some(height);
         self.payments
             .retain(|p| p.mined_height.is_some() || !p.inputs.iter().any(|i| i == key));
+        self.rings.remove(key);
         Ok(())
     }
     /// Signed bytes are kept only for rebroadcast. Past the 128-block rollback

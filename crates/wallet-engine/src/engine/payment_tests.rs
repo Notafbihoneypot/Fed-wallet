@@ -1,5 +1,5 @@
 //! Offline signing with real wallet keys and a synthetic ring; no node.
-use super::*;
+use super::{payment::RING_REUSE_BLOCKS, *};
 use crate::tests::NoNetwork;
 use curve25519_dalek::constants::ED25519_BASEPOINT_TABLE;
 use monero_wallet::ed25519::Commitment;
@@ -356,4 +356,57 @@ async fn every_signed_ring_hides_the_real_output_among_fifteen_requested_decoys(
     }
     // The real output does not sit at a fixed ring position.
     assert!(positions.len() > 1);
+}
+
+/// A retry must not show the node the real output a second time beside new
+/// decoys: the intersection of the two requests would be the real spend.
+#[tokio::test]
+async fn a_retry_reuses_the_ring_the_node_already_saw() {
+    let wallet = OfflineWallet::restore_spend_key(
+        KeyNetwork::Stagenet,
+        Zeroizing::new(format!("01{}", "00".repeat(31))),
+        0,
+    )
+    .unwrap();
+    let dir = tempfile::tempdir().unwrap();
+    let mut engine =
+        WalletEngine::<NoNetwork>::new(&wallet, dir.path(), CancellationToken::new()).unwrap();
+    engine.state.next_height = 1_001;
+    let output = owned_output(&engine, 1_000_000_000_000);
+    let id = "0d".repeat(32);
+    let chain = Chain::new([output.key(), output.commitment().commit()], 0);
+    let counts = std::sync::Arc::new((1..=1_001u64).map(|block| block * 10).collect::<Vec<_>>());
+    let adapter = decoys::CachedDecoys::new(&chain, 1_000, counts);
+    assert!(engine.reusable_ring(&id, &output, 1_000).is_none());
+    let ring = OutputWithDecoys::new(&mut OsRng, &adapter, 16, 1_000, output.clone())
+        .await
+        .unwrap();
+    engine.keep_ring(&id, &ring, 1_000).unwrap();
+
+    // Saved before use, so it survives a restart: reopen the wallet.
+    drop(engine);
+    let engine =
+        WalletEngine::<NoNetwork>::new(&wallet, dir.path(), CancellationToken::new()).unwrap();
+    // Reused for up to RING_REUSE_BLOCKS, then a fresh ring is selected.
+    assert!(engine.reusable_ring(&id, &output, 1_000).unwrap() == ring);
+    assert!(
+        engine
+            .reusable_ring(&id, &output, 1_000 + RING_REUSE_BLOCKS)
+            .unwrap()
+            == ring
+    );
+    assert!(engine
+        .reusable_ring(&id, &output, 1_001 + RING_REUSE_BLOCKS)
+        .is_none());
+    // The node saw the real output in exactly one request.
+    assert_eq!(chain.requests.lock().unwrap().len(), 1);
+    // Never applied to a different output.
+    let other = owned_output(&engine, 1_000_000_000_000);
+    assert!(engine.reusable_ring(&id, &other, 1_000).is_none());
+    // A reorg reaching the ring's block discards it; one above it does not.
+    let mut state = engine.state.clone();
+    state.rollback(1_001);
+    assert!(state.rings.contains_key(&id));
+    state.rollback(1_000);
+    assert!(state.rings.is_empty());
 }

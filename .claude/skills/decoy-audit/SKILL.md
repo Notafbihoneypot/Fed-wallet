@@ -44,7 +44,7 @@ The baseline in `references/issue-classes.md` is what was found the last time. A
 
 Be precise about the attacker. "A node that logs requests", "a node that returns false data" and "anyone reading the chain" are different attackers, and a weakness against one is not a weakness against all. The standard to hold the wallet to is that a misbehaving node can at worst make a payment fail. Anything that lets it learn or narrow the real spend while the wallet carries on without an error falls short of that standard and is reportable, even though upstream documents active nodes as out of scope.
 
-An audit reports. Do not change the payment path as part of it unless the owner asked for a fix. Some fixes also collide with project rules, for example `AGENTS.md` forbids caching or replaying ring requests, which rules out reusing a ring across retries. Those need the owner's decision, so present them as decisions.
+An audit reports. Do not change the payment path as part of it unless the owner asked for a fix. Some fixes also collide with project rules, for example `AGENTS.md` forbids replaying ring requests and allows only one narrow kind of ring reuse (same output, 720 blocks). Widening either needs the owner's decision, so present it as a decision.
 
 ## Report format
 
