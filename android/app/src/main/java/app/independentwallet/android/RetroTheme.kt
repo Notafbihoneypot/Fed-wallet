@@ -42,9 +42,17 @@ fun RetroWalletTheme(content: @Composable () -> Unit) {
         colorScheme = darkColorScheme(
             primary = Color(0xFFB1DC87), onPrimary = Color(0xFF14200D), primaryContainer = Color(0xFF25391E), onPrimaryContainer = Color(0xFFD5F5B5),
             secondary = Color(0xFFE7A36A), onSecondary = Color(0xFF2C190C), secondaryContainer = Color(0xFF392B1C), onSecondaryContainer = Color(0xFFFFDBB8),
+            tertiary = Color(0xFF9FD3C7), onTertiary = Color(0xFF0E2420), tertiaryContainer = Color(0xFF1C3A34), onTertiaryContainer = Color(0xFFBDEFE3),
             background = Color(0xFF0B100D), onBackground = Color(0xFFE2EAD9), surface = Color(0xFF141D16), onSurface = Color(0xFFE2EAD9),
-            surfaceVariant = Color(0xFF1D2A20), onSurfaceVariant = Color(0xFFA6B6A0), surfaceContainer = Color(0xFF18231B),
-            outline = Color(0xFF69805F), outlineVariant = Color(0xFF31452F), error = Color(0xFFFFB0A3), errorContainer = Color(0xFF50251F), onErrorContainer = Color(0xFFFFDAD3),
+            surfaceVariant = Color(0xFF1D2A20), onSurfaceVariant = Color(0xFFA6B6A0),
+            // Every container role is set: Material defaults are purple-grey, and dialogs
+            // (High) and bottom sheets (Low) would otherwise ignore this palette.
+            surfaceDim = Color(0xFF0B100D), surfaceBright = Color(0xFF2C3A2E),
+            surfaceContainerLowest = Color(0xFF080C09), surfaceContainerLow = Color(0xFF141D16), surfaceContainer = Color(0xFF18231B),
+            surfaceContainerHigh = Color(0xFF1F2C22), surfaceContainerHighest = Color(0xFF27362A),
+            inverseSurface = Color(0xFFE2EAD9), inverseOnSurface = Color(0xFF1A241C), inversePrimary = Color(0xFF3F6A26),
+            outline = Color(0xFF69805F), outlineVariant = Color(0xFF31452F), scrim = Color(0xFF000000),
+            error = Color(0xFFFFB0A3), onError = Color(0xFF561E16), errorContainer = Color(0xFF50251F), onErrorContainer = Color(0xFFFFDAD3),
         ), typography = type,
         shapes = Shapes(extraSmall = CutCornerShape(4.dp), small = CutCornerShape(4.dp), medium = CutCornerShape(6.dp), large = CutCornerShape(8.dp), extraLarge = CutCornerShape(8.dp)),
         content = content,

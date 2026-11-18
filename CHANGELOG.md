@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.11.13 preview candidate: payment and unlock screen fixes
+
+Host-tested (Kotlin compile, Android unit tests). Not yet run on a device; the send freeze was diagnosed from the code, not reproduced.
+
+- Asking for the PIN or biometrics no longer rebuilds the whole wallet screen behind the prompt. Before, every prompt tore down and re-opened the open payment sheet, which could slide back over the PIN dialog and leave the payment looking stuck, and closed the receipt sheet when you asked to see a transaction key.
+- Dialogs and bottom sheets use the app's own colours. Before, the theme left several Material colour roles unset, so the PIN dialog and payment sheets fell back to purple-grey defaults.
+- The PIN dialog says what it is for ("Authorize payment", "Show transaction key", "Unlock wallet"), shows the 8 to 12 digit rule, submits from the keyboard's Done key, marks a wrong PIN on the field, and shows "Use biometric" as a full-width button.
+
 ## 0.11.12 preview candidate: decoy-data checks, receipts and transaction details
 
 Host-tested (Rust workspace tests and lints, Kotlin compile, Android unit tests) and built as an unsigned release APK. Not yet run on a device, against a live node, or through `scripts/test-regtest.py`.

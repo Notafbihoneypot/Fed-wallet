@@ -5958,7 +5958,7 @@ dependencies = [
 
 [[package]]
 name = "wallet-engine"
-version = "0.11.12"
+version = "0.11.13"
 dependencies = [
  "arti-client",
  "bytes",
@@ -5991,7 +5991,7 @@ dependencies = [
 
 [[package]]
 name = "wallet-ffi"
-version = "0.11.12"
+version = "0.11.13"
 dependencies = [
  "argon2",
  "rand_core 0.6.4",
@@ -6008,7 +6008,7 @@ dependencies = [
 
 [[package]]
 name = "wallet-keys"
-version = "0.11.12"
+version = "0.11.13"
 dependencies = [
  "curve25519-dalek",
  "hex",
@@ -6026,7 +6026,7 @@ dependencies = [
 
 [[package]]
 name = "wallet-policy"
-version = "0.11.12"
+version = "0.11.13"
 dependencies = [
  "url",
 ]
