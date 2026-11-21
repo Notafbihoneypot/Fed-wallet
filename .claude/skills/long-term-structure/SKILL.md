@@ -67,7 +67,7 @@ Stop when every open question has an answer or an explicit "decide later", then 
 Most of these come from Ousterhout; each has a real example in this repo.
 
 - **One mechanism, many jobs.** The `generation` counter both cleared secrets and gave the whole dashboard its Compose identity, so every PIN prompt rebuilt the payment sheet over the prompt (fixed in 0.11.13). When a value means two things, split it.
-- **God object.** `OfflineWalletViewModel.kt`: about 1,450 lines, 55 mutable fields, 99 functions spanning vaults, setup, security, network, sync and payments. Bugs in one concern ride on another's state. Splitting it along the bounded contexts above is the largest structural investment available.
+- **God object.** `OfflineWalletViewModel.kt`: about 1,450 lines, 55 mutable fields, 99 functions spanning vaults, setup, security, network, sync and payments. Bugs in one concern ride on another's state. Splitting it along the bounded contexts above is the largest structural investment available. Owner-chosen order, one piece per release: authentication (PIN, biometrics, `VaultAction`, authentication windows) first, then the online session and sync, then the payment flow, then setup and vault.
 - **Shallow module.** An interface nearly as complex as its implementation, or a layer that only passes calls through.
 - **Information leakage.** The same knowledge (a format, a limit, an ordering rule) encoded in two places that must change together.
 - **Temporal decomposition.** Code split by "what happens first" rather than by what knowledge it hides.
