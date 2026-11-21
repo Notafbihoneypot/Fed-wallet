@@ -9,8 +9,13 @@ permissions:
   contents: read
 
 jobs:
+  checks:
+    uses: ./.github/workflows/checks.yml
+
   unsigned-release:
     name: Compile and verify unsigned Independent Wallet
+    # No release build unless every test and lint passed.
+    needs: checks
     runs-on: ubuntu-24.04
     timeout-minutes: 180
     steps:

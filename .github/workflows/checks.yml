@@ -1,0 +1,47 @@
+name: Checks
+
+# Every push and pull request runs the full test suites. The release build
+# calls this workflow first and stops if any check fails (owner decision).
+on:
+  push:
+  pull_request:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  rust:
+    name: Rust tests, format and lints
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: '1.99.1'
+          components: rustfmt,clippy
+      - name: scripts/check.sh
+        run: bash scripts/check.sh
+
+  android:
+    name: Android unit tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v4
+      - name: Install Android SDK
+        run: sdkmanager --install 'platforms;android-36' 'build-tools;36.0.0'
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: '1.99.1'
+      - name: Build host native library and generate Kotlin bindings
+        run: bash scripts/build-bindings.sh
+      - name: Unit tests
+        working-directory: android
+        run: bash ./gradlew :app:testDebugUnitTest --no-daemon --stacktrace
