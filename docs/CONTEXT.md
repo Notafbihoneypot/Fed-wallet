@@ -380,12 +380,12 @@ Sections: [Rust](#rust) · [Libraries](#libraries) · [Monero and monero-oxide](
 
 ## Nostr
 
-Nostr is not used by the wallet. These entries give shared meanings for discussions; no integration has been decided.
+Owner decision (21 November 2026): Nostr belongs to Fed POS and stays out of the wallet. A relay would be a new party able to see wallet activity, while the wallet's privacy rests on talking only to a node the user chooses. `scripts/check.sh` fails if a Nostr dependency enters the wallet build. These entries give shared meanings for Fed POS discussions.
 
 ### Nostr
 **Context:** Nostr
 **Means:** an open protocol ("Notes and Other Stuff Transmitted by Relays") where users sign messages with their own key and publish them to independent servers called relays. No single company controls it.
-**In code:** not in code.
+**In code:** not in the wallet, by decision; Fed POS only.
 
 ### Relay
 **Context:** Nostr, server design
