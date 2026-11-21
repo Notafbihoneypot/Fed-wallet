@@ -89,6 +89,11 @@ pub struct WalletPayment {
     pub total_xmr: String,
     pub mined_height: Option<u64>,
     pub confirmations: u64,
+    /// Whether the transaction key was recorded. The key itself is never
+    /// part of a status; it is read by `transaction_key` on request.
+    pub has_transaction_key: bool,
+    /// Chain output indices of each input's ring; empty once the signed bytes are wiped.
+    pub ring_members: Vec<Vec<u64>>,
 }
 #[derive(uniffi::Record)]
 pub struct WalletSyncStatus {
@@ -141,6 +146,8 @@ impl From<wallet_engine::SyncStatus> for WalletSyncStatus {
                     total_xmr: format_xmr(p.total_atomic),
                     mined_height: p.mined_height,
                     confirmations: p.confirmations,
+                    has_transaction_key: p.has_transaction_key,
+                    ring_members: p.ring_members,
                 })
                 .collect(),
             pending: s.pending.as_ref().map(|p| PendingTransfer {
@@ -325,6 +332,14 @@ impl OnlineWalletSession {
     }
     pub fn status(&self) -> Result<WalletSyncStatus, OnlineError> {
         self.call(|e| e.status().map(Into::into))
+    }
+    /// The recorded private key of one sent payment, for a payment proof.
+    /// Call only after the user explicitly asked for it and authenticated.
+    pub fn transaction_key(&self, transaction: String) -> Result<Option<String>, OnlineError> {
+        self.call(|e| {
+            Ok(e.transaction_key(&transaction)?
+                .map(|key| key.as_str().to_owned()))
+        })
     }
     pub fn receive_address(&self, index: u32) -> Result<String, OnlineError> {
         self.call(|e| e.receive_address(index))

@@ -6,7 +6,7 @@ import sys
 import zipfile
 
 root = pathlib.Path(__file__).resolve().parents[1]
-destination = pathlib.Path(sys.argv[1]).resolve() if len(sys.argv) == 2 else root.parent / "independent-wallet-v0.11.11-source.zip"
+destination = pathlib.Path(sys.argv[1]).resolve() if len(sys.argv) == 2 else root.parent / "independent-wallet-v0.11.13-source.zip"
 blocked = {"target", "build", ".git", ".gradle", ".kotlin", "jniLibs", "captures", "__pycache__"}
 root_names = {"AGENTS.md", "README.md", "NOTICE.md", "CHANGELOG.md", "LICENSE", "Cargo.toml", "Cargo.lock", "rust-toolchain.toml", ".gitignore"}
 def source_file(path):

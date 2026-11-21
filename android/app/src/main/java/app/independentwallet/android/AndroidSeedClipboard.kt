@@ -12,7 +12,8 @@ internal class AndroidSeedClipboard(context: Context) {
     private val preferences = context.getSharedPreferences("seed-clipboard-metadata", Context.MODE_PRIVATE)
     private val copy = SeedClipboard(object : SeedClipboardPort {
         override fun writeSensitive(text: String, owner: String) {
-            val clip = ClipData.newPlainText("Recovery phrase", text)
+            // One neutral label: this path also carries wallet keys and transaction keys.
+            val clip = ClipData.newPlainText("Wallet secret", text)
             clip.description.extras = PersistableBundle().apply {
                 putBoolean("android.content.extra.IS_SENSITIVE", true)
                 putString(OWNER, owner)

@@ -43,6 +43,7 @@ fn payment() -> PendingPayment {
         mined_height: None,
         bytes: "00".into(),
         inputs: vec!["34".repeat(32)],
+        tx_key: Some("56".repeat(32)),
     }
 }
 #[test]
@@ -174,6 +175,21 @@ fn encrypted_round_trip_preserves_pending_reservations() {
     st.save(&s).unwrap();
     let r = st.load().unwrap().unwrap();
     assert!(r.reserved(&"34".repeat(32)));
+    assert_eq!(r.payments[0].tx_key, Some("56".repeat(32)));
+    // A journal written before transaction keys were recorded still loads.
+    let mut legacy = serde_json::to_value(&s).unwrap();
+    assert!(legacy["payments"][0]
+        .as_object_mut()
+        .unwrap()
+        .remove("tx_key")
+        .is_some());
+    let legacy: State = serde_json::from_value(legacy).unwrap();
+    legacy.validate().unwrap();
+    assert_eq!(legacy.payments[0].tx_key, None);
+    // Anything that is not a 32-byte key in hex is refused, not shown.
+    let mut malformed = s.clone();
+    malformed.payments[0].tx_key = Some("56".repeat(31));
+    assert!(malformed.validate().is_err());
     let p = std::fs::read_dir(d.path())
         .unwrap()
         .map(|e| e.unwrap().path())
@@ -183,6 +199,8 @@ fn encrypted_round_trip_preserves_pending_reservations() {
     assert!(!b
         .windows(s.address.len())
         .any(|b| b == s.address.as_bytes()));
+    let key = "56".repeat(32);
+    assert!(!b.windows(key.len()).any(|b| b == key.as_bytes()));
 }
 #[test]
 fn wrong_cache_key_and_tampering_fail_closed() {

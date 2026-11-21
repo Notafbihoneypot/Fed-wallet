@@ -188,7 +188,7 @@ class MainActivity:ComponentActivity(){
             LaunchedEffect(ui.generation,pending){if(pending!=null&&offlineVm.pendingAuthenticationRequest()!=pending){pending=null;prompt=false}}
             if(ui.wiping)Text("Clearing wallet data…",Modifier.padding(32.dp))else{
                 WalletApp(offlineVm=offlineVm,authenticate=::authenticate)
-                if(prompt&&pending!=null)AuthenticationDialog(application.appLocks().configured(),pinBusy,pinError,
+                if(prompt&&pending!=null)AuthenticationDialog(pending?.first,application.appLocks().configured(),pinBusy,pinError,
                     allowBiometric=(!ui.security.pin||ui.security.biometrics)&&pending?.first!=VaultAction.ConfigureSecurity,
                     submit=::submitPin,biometric={launchBiometric(false)},device=::launchDeviceCredential,dismiss=::cancelAuthentication)
             }

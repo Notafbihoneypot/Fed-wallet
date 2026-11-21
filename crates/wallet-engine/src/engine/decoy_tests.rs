@@ -142,7 +142,15 @@ async fn engine(directory: &Path, node: &CountNode) -> WalletEngine<CountNode> {
     )
     .unwrap();
     let mut engine = WalletEngine::new(&wallet, directory, CancellationToken::new()).unwrap();
-    engine.state.next_height = node.tip.load(Ordering::SeqCst) as u64 + 1;
+    // The wallet's own count at its scanned tip, as a completed sync leaves it.
+    let tip = node.tip.load(Ordering::SeqCst);
+    engine.state.next_height = tip as u64 + 1;
+    engine.state.next_output = Some(node.count(tip));
+    engine.state.checkpoints = vec![Checkpoint {
+        height: tip as u64,
+        hash: node.hash(tip),
+        next_output: node.count(tip),
+    }];
     engine.rpc = Some(MoneroDaemon::new(node.clone()).await.unwrap());
     engine.decoy_source = Some([7; 32]);
     engine
@@ -242,13 +250,13 @@ async fn interrupted_history_survives_reopen_and_extends_the_same_canonical_snap
 
 #[tokio::test]
 async fn small_read_budget_shrinks_only_public_count_pages() {
-    let mut node = CountNode::new(10_000, 210_000);
+    let mut node = CountNode::new(10_000, 290_000);
     node.max_page = 32 * 1024;
     let directory = tempfile::tempdir().unwrap();
     let mut engine = engine(directory.path(), &node).await;
     assert_eq!(
         engine
-            .distribution_for_payment(node.hash(210_000))
+            .distribution_for_payment(node.hash(290_000))
             .await
             .unwrap()
             .as_ref(),
@@ -339,12 +347,12 @@ async fn persisted_counts_are_not_reused_for_a_different_selected_node_or_route(
     .unwrap();
     assert_ne!(direct, tor);
     assert_ne!(tor, other);
-    let node = CountNode::new(10_000, 210_000);
+    let node = CountNode::new(10_000, 290_000);
     let directory = tempfile::tempdir().unwrap();
     let mut first = engine(directory.path(), &node).await;
     first.decoy_source = Some(direct);
     first
-        .distribution_for_payment(node.hash(210_000))
+        .distribution_for_payment(node.hash(290_000))
         .await
         .unwrap();
     drop(first);
@@ -353,7 +361,7 @@ async fn persisted_counts_are_not_reused_for_a_different_selected_node_or_route(
     changed.decoy_source = Some(tor);
     assert_eq!(
         changed
-            .distribution_for_payment(node.hash(210_000))
+            .distribution_for_payment(node.hash(290_000))
             .await
             .unwrap()
             .as_ref(),
@@ -364,4 +372,143 @@ async fn persisted_counts_are_not_reused_for_a_different_selected_node_or_route(
         changed.store.load_distribution().unwrap().unwrap().source,
         tor
     );
+}
+
+/// An owned output record at `height` whose chain index is `index`.
+fn owned(height: u64, index: u64) -> (String, OutputRecord) {
+    use curve25519_dalek::constants::ED25519_BASEPOINT_TABLE;
+    let key = Point::from(&Scalar::random(&mut OsRng).into() * ED25519_BASEPOINT_TABLE);
+    let mut bytes = vec![9; 32]; // transaction hash
+    bytes.extend(0u64.to_le_bytes()); // index in transaction
+    bytes.extend(index.to_le_bytes()); // index on blockchain
+    bytes.extend(key.compress().to_bytes());
+    Scalar::random(&mut OsRng).write(&mut bytes).unwrap();
+    monero_wallet::ed25519::Commitment::new(Scalar::random(&mut OsRng), 1)
+        .write(&mut bytes)
+        .unwrap();
+    bytes.extend([0, 0, 0, 0]); // no timelock, subaddress, payment ID or arbitrary data
+    (
+        hex::encode(key.compress().to_bytes()),
+        OutputRecord {
+            bytes: hex::encode(bytes),
+            height,
+            coinbase: false,
+            image: None,
+            spent_height: None,
+        },
+    )
+}
+
+#[tokio::test]
+async fn a_history_cut_short_by_the_node_is_refused_and_not_kept() {
+    // The node claims RingCT history begins 20 blocks below the tip. Decoys
+    // placed with such counts scatter across years and expose a recent spend.
+    let node = CountNode::new(1_619_980, 1_620_000);
+    let directory = tempfile::tempdir().unwrap();
+    let mut engine = engine(directory.path(), &node).await;
+    assert!(matches!(
+        engine.distribution_for_payment(node.hash(1_620_000)).await,
+        Err(EngineError::DecoyData)
+    ));
+    assert!(engine.decoy_cache.is_none());
+    assert!(engine.store.load_distribution().unwrap().is_none());
+    // The same shape can neither be saved nor loaded as a finished history.
+    let cut = DistributionCache {
+        height: 1_620_000,
+        hash: [1; 32],
+        counts: Arc::new((1..=21).collect()),
+        complete: true,
+        source: [7; 32],
+    };
+    assert!(matches!(cut.validate(), Err(EngineError::DecoyData)));
+    assert!(engine.store.save_distribution(&cut).is_err());
+    // One year short of block 0 is the floor; a history reaching block 0 is whole.
+    let year = super::decoys::MIN_HISTORY_BLOCKS as u64;
+    let mut long = cut.clone();
+    long.counts = Arc::new((1..=year).collect());
+    assert!(long.validate().is_ok());
+    let mut genesis = cut;
+    genesis.height = 20;
+    assert!(genesis.validate().is_ok());
+}
+
+#[tokio::test]
+async fn counts_that_contradict_the_wallets_own_scan_are_refused() {
+    let node = CountNode::new(10_000, 290_000);
+    let directory = tempfile::tempdir().unwrap();
+    let mut honest = engine(directory.path(), &node).await;
+    // Older scanned blocks are compared as well as the tip.
+    honest.state.checkpoints.insert(
+        0,
+        Checkpoint {
+            height: 289_999,
+            hash: node.hash(289_999),
+            next_output: node.count(289_999),
+        },
+    );
+    honest
+        .distribution_for_payment(node.hash(290_000))
+        .await
+        .unwrap();
+    assert!(honest.store.load_distribution().unwrap().unwrap().complete);
+    for wrong in [0usize, 1] {
+        // The wallet counted one more output than the node now reports.
+        honest.state.checkpoints[wrong].next_output += 1;
+        assert!(matches!(
+            honest.distribution_for_payment(node.hash(290_000)).await,
+            Err(EngineError::DecoyData)
+        ));
+        // Nothing from that node is kept, in memory or on disk.
+        assert!(honest.decoy_cache.is_none());
+        assert!(honest.store.load_distribution().unwrap().is_none());
+        honest.state.checkpoints[wrong].next_output -= 1;
+        honest
+            .distribution_for_payment(node.hash(290_000))
+            .await
+            .unwrap();
+    }
+    // A wallet that never completed a scan to this tip has nothing to compare.
+    honest.state.checkpoints.clear();
+    assert!(matches!(
+        honest.distribution_for_payment(node.hash(290_000)).await,
+        Err(EngineError::SyncRequired)
+    ));
+}
+
+#[tokio::test]
+async fn an_owned_output_must_lie_inside_the_counts_for_its_own_block() {
+    let node = CountNode::new(10_000, 290_000);
+    let directory = tempfile::tempdir().unwrap();
+    let mut engine = engine(directory.path(), &node).await;
+    let block = 150_000usize;
+    let (first, through) = (node.count(block - 1), node.count(block));
+    // Every index the block really holds is accepted, as is the first RingCT block.
+    for (height, index) in [
+        (block as u64, first),
+        (block as u64, through - 1),
+        (10_000, 0),
+        (10_000, node.count(10_000) - 1),
+        (290_000, node.count(290_000) - 1),
+    ] {
+        engine.state.outputs = [owned(height, index)].into();
+        engine
+            .distribution_for_payment(node.hash(290_000))
+            .await
+            .unwrap();
+    }
+    // An index outside its block, or a block before the claimed first RingCT
+    // block, means the counts do not describe the chain this wallet scanned.
+    for (height, index) in [
+        (block as u64, first - 1),
+        (block as u64, through),
+        (10_000, node.count(10_000)),
+        (9_999, 0),
+    ] {
+        engine.state.outputs = [owned(height, index)].into();
+        assert!(matches!(
+            engine.distribution_for_payment(node.hash(290_000)).await,
+            Err(EngineError::DecoyData)
+        ));
+        assert!(engine.store.load_distribution().unwrap().is_none());
+    }
 }

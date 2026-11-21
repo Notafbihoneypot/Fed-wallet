@@ -73,10 +73,13 @@ fun OfflineWalletPanel(state: OfflineUiState, vm: OfflineWalletViewModel, authen
                 Text("This backup step is saved. Leaving pauses setup.", style = MaterialTheme.typography.bodySmall)
                 TextButton(onClick = vm::lock) { Text("Pause setup") }
             }
-            WalletStage.Open -> {
-                WalletDashboard(state, vm, authenticate, node, nodeKind, chooseNode, torChoice)
-            }
+            // Drawn below, outside this key: it holds no secrets, and rebuilding it
+            // for every PIN prompt re-opened its payment sheet over the prompt.
+            WalletStage.Open -> Unit
         }
+    }
+    if (state.stage == WalletStage.Open) key(state.walletSlot, state.info?.address) {
+        WalletDashboard(state, vm, authenticate, node, nodeKind, chooseNode, torChoice)
     }
     if (state.hasSetup && !state.hasVault && state.stage in listOf(WalletStage.Locked, WalletStage.Backup, WalletStage.Verify, WalletStage.Open)) {
         TextButton(onClick = { confirmDiscard = true }, enabled = !state.busy,

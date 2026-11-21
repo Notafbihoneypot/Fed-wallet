@@ -13,8 +13,8 @@ android {
         applicationId = "app.independentwallet.android.syncpreview2"
         minSdk = 28
         targetSdk = 36
-        versionCode = 29
-        versionName = "0.11.11-preview2-candidate"
+        versionCode = 31
+        versionName = "0.11.13-preview2-candidate"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         ndk { abiFilters += listOf("arm64-v8a", "x86_64") }
     }

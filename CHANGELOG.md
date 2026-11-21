@@ -1,5 +1,29 @@
 # Changelog
 
+## 0.11.13 preview candidate: payment and unlock screen fixes
+
+Host-tested (Kotlin compile, Android unit tests). Not yet run on a device; the send freeze was diagnosed from the code, not reproduced.
+
+- Asking for the PIN or biometrics no longer rebuilds the whole wallet screen behind the prompt. Before, every prompt tore down and re-opened the open payment sheet, which could slide back over the PIN dialog and leave the payment looking stuck, and closed the receipt sheet when you asked to see a transaction key.
+- Dialogs and bottom sheets use the app's own colours. Before, the theme left several Material colour roles unset, so the PIN dialog and payment sheets fell back to purple-grey defaults.
+- The PIN dialog says what it is for ("Authorize payment", "Show transaction key", "Unlock wallet"), shows the 8 to 12 digit rule, submits from the keyboard's Done key, marks a wrong PIN on the field, and shows "Use biometric" as a full-width button.
+
+## 0.11.12 preview candidate: decoy-data checks, receipts and transaction details
+
+Host-tested (Rust workspace tests and lints, Kotlin compile, Android unit tests) and built as an unsigned release APK. Not yet run on a device, against a live node, or through `scripts/test-regtest.py`.
+
+- Sent-payment receipts gain a **Decoys** section: each input's 16 ring members, as chain output positions read from the payment's own signed bytes on the phone (no network). The real coin is never marked. It is shown until the signed bytes are wiped 128 blocks after confirmation.
+- Sent and received details gain **Copy block explorer link** (xmrchain.net, or stagenet.xmrchain.net). The wallet never opens it; the sheet says a website loading it sees the transaction ID with the user's IP address.
+- New test `every_signed_ring_hides_the_real_output_among_fifteen_requested_decoys`: 20 signed transactions each carry 16 distinct ring members, the real output exactly once and at varying positions, all from the single node request that also carried the real output.
+
+- Decoy counts from the node are now checked against what the wallet holds itself before any decoy is chosen: the cumulative RingCT output count of every block in its last 128 scanned blocks, and the chain index and block of every output it owns. Counts that disagree are refused with a new `NODE_DECOYS` error, and nothing from that node's count history is kept.
+- A count history that stops before block 0 must cover at least one year of blocks. Before, a node could present its last few blocks as the whole history; measured on a synthetic chain, that moved the median decoy age from about 1.4 days to about 13 months and left a recent spend visibly alone.
+- A node may report at most two unusable decoy candidates per input (locked, undecodable, torsioned or identity key). Beyond that the reply is refused before any replacement request is sent. Before, a node reporting 15 of 16 candidates as locked could single out the real spend without an error; now it can rule out at most two ring members.
+- Preparing a payment again (an expired review, a changed amount, a restart) reuses each coin's ring for up to 720 blocks instead of asking the node again. Before, a node that only logged requests could find the real coin by comparing two preparations. The ring is saved encrypted before use, must match the coin exactly, and is dropped once the coin is spent or a reorg reaches its block. New test `a_retry_reuses_the_ring_the_node_already_saw`.
+- Remaining limits: a retry more than about a day later selects new decoys; an aborted selection saves no ring; counts older than the wallet's own 128-block window are checked only where the wallet owns an output.
+- Activity rows open a details sheet for received as well as sent transactions, with the transaction ID and a Copy button. Sent payments also offer Copy recipient address.
+- Sent payments record their transaction key in the encrypted wallet journal, checked against the public key inside the signed transaction before it is stored. It is shown only after device authentication, is not selectable text, hides after one minute, and is copied through the same sensitive, clearable clipboard as wallet keys. Payments sent before this change have no recorded key and say so.
+
 ## 0.11.11 VoidKey: sync speed and audit fixes — 6 November 2026
 
 - The app is now named **VoidKey** on the launcher, in Settings and in permission messages. The package ID is unchanged, but the owner replaced the lost Preview 2 signing key after confirming those wallets were disposable tests. Builds signed by the prior key must be uninstalled, deleting their local app data, before installing 0.11.11 fresh.

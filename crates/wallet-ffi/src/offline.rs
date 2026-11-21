@@ -258,6 +258,15 @@ impl OfflineWalletSession {
     ) -> Result<crate::ReceivingAddressBook, crate::OnlineError> {
         self.with_receiving(&directory, |child| child.label_subaddress(index, label))
     }
+    /// Reads one sent payment's transaction key from the encrypted local
+    /// journal. Needs no node; never constructs a network client.
+    pub fn transaction_key(
+        &self,
+        directory: String,
+        transaction: String,
+    ) -> Result<Option<String>, crate::OnlineError> {
+        self.with_receiving(&directory, |child| child.transaction_key(transaction))
+    }
     /// A new independent mainnet owner; never edits or relabels the source.
     pub fn copy_to_mainnet(&self, restore_height: u64) -> Result<Arc<Self>, WalletError> {
         let guard = self.state()?;

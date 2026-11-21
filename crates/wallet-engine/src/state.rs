@@ -38,8 +38,28 @@ pub struct PendingPayment {
     pub mined_height: Option<u64>,
     pub(crate) bytes: String,
     pub(crate) inputs: Vec<String>,
+    /// The transaction's private key, kept so the sender can later prove this
+    /// payment. Absent for payments made before it was recorded.
+    #[serde(default)]
+    pub(crate) tx_key: Option<String>,
 }
 impl Drop for PendingPayment {
+    fn drop(&mut self) {
+        self.bytes.zeroize();
+        self.tx_key.zeroize();
+    }
+}
+/// A ring already sent to the node for one owned output. Reusing it on a
+/// retry keeps the node from intersecting two requests that both carry the
+/// real output beside different decoys.
+#[derive(Clone, Serialize, Deserialize)]
+pub(crate) struct RingRecord {
+    /// Last scanned block when the ring was selected.
+    pub height: u64,
+    /// Hex `OutputWithDecoys` serialization.
+    pub bytes: String,
+}
+impl Drop for RingRecord {
     fn drop(&mut self) {
         self.bytes.zeroize();
     }
@@ -62,6 +82,8 @@ pub struct State {
     pub(crate) selected_subaddress: u32,
     #[serde(default)]
     pub(crate) subaddress_labels: BTreeMap<u32, String>,
+    #[serde(default)]
+    pub(crate) rings: BTreeMap<String, RingRecord>,
 }
 fn first_subaddress() -> u32 {
     1
@@ -82,6 +104,7 @@ impl State {
             created_subaddress: 1,
             selected_subaddress: 1,
             subaddress_labels: BTreeMap::new(),
+            rings: BTreeMap::new(),
         }
     }
     pub(crate) fn validate(&self) -> Result<(), EngineError> {
@@ -123,7 +146,16 @@ impl State {
                 || p.inputs.len() > 16
                 || p.inputs.iter().any(|s| s.len() != 64)
                 || p.bytes.len() > 256_000
+                || p.tx_key.as_ref().is_some_and(|k| k.len() != 64)
             {
+                return Err(EngineError::Storage);
+            }
+        }
+        if self.rings.len() > 50_000 {
+            return Err(EngineError::Storage);
+        }
+        for (key, r) in &self.rings {
+            if key.len() != 64 || r.bytes.len() > 16_384 || r.height >= self.next_height {
                 return Err(EngineError::Storage);
             }
         }
@@ -152,6 +184,8 @@ impl State {
                 p.mined_height = None;
             }
         }
+        // A reorged block may hold one of the ring's members.
+        self.rings.retain(|_, r| r.height < next_height);
         self.checkpoints.retain(|p| p.height < next_height);
         self.next_height = next_height;
         self.next_output = self
@@ -175,6 +209,7 @@ impl State {
             .spent_height = Some(height);
         self.payments
             .retain(|p| p.mined_height.is_some() || !p.inputs.iter().any(|i| i == key));
+        self.rings.remove(key);
         Ok(())
     }
     /// Signed bytes are kept only for rebroadcast. Past the 128-block rollback

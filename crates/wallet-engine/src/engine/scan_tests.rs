@@ -70,6 +70,7 @@ fn forward_start_cannot_hide_known_outputs_history_or_payment_reservations() {
         mined_height: None,
         bytes: "00".into(),
         inputs: vec!["04".repeat(32)],
+        tx_key: None,
     });
     assert!(matches!(engine.rescan(10), Err(EngineError::ScanHistory)));
     assert_eq!(engine.state.payments.len(), 1);
@@ -137,6 +138,7 @@ fn settled_payments_beyond_the_old_cap_still_save_and_reopen() {
         mined_height: Some(mined),
         bytes: "00".into(),
         inputs: vec![format!("{i:064x}")],
+        tx_key: Some(format!("{i:064x}")),
     };
     next.payments = (0..1_025).map(|i| payment(i, i)).collect();
     // Still inside the rollback window: rebroadcast bytes must survive.
