@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased (branch `claude/pinetime-watch`): payment alerts for phone, PineTime and Samsung watches
+## 0.11.14 watch test build (branch `claude/pinetime-watch`): payment alerts for phone, PineTime and Samsung watches
 
 Host-tested (Kotlin compile, Android unit tests). Not yet run on a phone or a watch.
 
