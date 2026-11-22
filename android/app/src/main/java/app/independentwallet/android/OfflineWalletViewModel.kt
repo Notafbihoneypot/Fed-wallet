@@ -125,7 +125,23 @@ class OfflineWalletViewModel(application: Application) : AndroidViewModel(applic
         canPollNetwork(ui, pendingAuthentication != null) && !networkInFlight
     }, { pollNetwork() })
 
+    private val paymentAlerts = PaymentAlertNotifier(application)
+    fun paymentAlertsEnabled(): Boolean = paymentAlerts.enabled
+    fun setPaymentAlerts(enabled: Boolean) { paymentAlerts.enabled = enabled }
+
     init {
+        // Compare successive snapshots of one wallet; a lock or wallet switch resets the comparison.
+        viewModelScope.launch {
+            var previous: Pair<WalletSlot, WalletSyncStatus>? = null
+            state.collect { ui ->
+                val next = ui.online.status?.let { ui.walletSlot to it }
+                if (next?.second !== previous?.second) {
+                    val before = previous?.takeIf { it.first == next?.first }?.second
+                    paymentAlerts.post(paymentAlerts(before, next?.second))
+                    previous = next
+                }
+            }
+        }
         viewModelScope.launch {
             try {
                 val entries=withContext(Dispatchers.IO){catalog.initialize()}

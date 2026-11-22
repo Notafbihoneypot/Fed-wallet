@@ -20,7 +20,7 @@ Sections: [Watch](#watch) · [Rust](#rust) · [Libraries](#libraries) · [Monero
 ### Watch alert
 **Context:** Watch, security
 **Means:** a short message the watch shows when a payment is received or confirmed. It is the only thing the wallet sends to a watch (owner decision): no keys, addresses, balances, node details or payment approval.
-**In code:** an Android notification from VoidKey; the Gadgetbridge app forwards it to the watch.
+**In code:** `PaymentAlerts.kt` (opt-in in Settings, fixed wording, no amount); the Gadgetbridge app forwards it to the watch.
 **Not to be confused with:** a payment approval, which happens only on the phone with PIN or biometrics.
 
 ### Gadgetbridge

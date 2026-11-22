@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased (branch `claude/pinetime-watch`): payment alerts for phone and PineTime
+
+Host-tested (Kotlin compile, Android unit tests). Not yet run on a phone or a watch.
+
+- Settings → **Payment alerts** (off by default) posts "Payment received" when a new incoming payment appears after the wallet has caught up, and "Payment confirmed" when your pending payment enters a block. No amount, address or transaction ID; hidden from the lock screen.
+- To see them on a PineTime, let Gadgetbridge forward VoidKey notifications. VoidKey has no Bluetooth permission or code.
+- Alerts arrive only while the wallet is syncing (open and unlocked, or opt-in background sync). Payments found during a first sync or rescan never alert.
+
 ## 0.11.13 preview candidate: payment and unlock screen fixes
 
 Host-tested (Kotlin compile, Android unit tests). Not yet run on a device; the send freeze was diagnosed from the code, not reproduced.

@@ -8,6 +8,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -53,6 +54,8 @@ import app.independentwallet.bindings.KeyWalletMode
         }
     }
     Text("Screenshots blocked · locks after 5 minutes · device-only storage",style=MaterialTheme.typography.bodySmall)
+    HorizontalDivider()
+    PaymentAlertSettings(vm)
     val old=state.wallets.filter{it.archived||it.network=="unknown"}
     if(old.isNotEmpty()){
         TextButton(onClick={archived=!archived}){Text("Earlier / test wallets (${old.size})")}
@@ -100,4 +103,16 @@ import app.independentwallet.bindings.KeyWalletMode
     state.clipboardMessage?.let{Text(it,style=MaterialTheme.typography.bodySmall)}
     TextButton(onClick=vm::clearSeedClipboard){Text("Clear copy")}
     Button(onClick=vm::hideRecovery,modifier=Modifier.fillMaxWidth()){Text("Done")}
+}
+
+/** Opt-in watch and phone alerts. Wording is fixed and never includes an amount. */
+@Composable private fun PaymentAlertSettings(vm:OfflineWalletViewModel){
+    var enabled by remember{mutableStateOf(vm.paymentAlertsEnabled())}
+    Text("Payment alerts",style=MaterialTheme.typography.titleMedium,fontWeight=FontWeight.SemiBold)
+    Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically){
+        Text("Notify when a payment arrives or confirms",Modifier.weight(1f))
+        Switch(enabled,{enabled=it;vm.setPaymentAlerts(it)})
+    }
+    Text("Alerts say only \"Payment received\" or \"Payment confirmed\", never an amount or address, and stay off the lock screen. They arrive only while the wallet is syncing. "+
+        "To see them on a PineTime watch, let Gadgetbridge forward VoidKey notifications.",style=MaterialTheme.typography.bodySmall)
 }
