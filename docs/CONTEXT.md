@@ -23,6 +23,11 @@ Sections: [Watch](#watch) · [Rust](#rust) · [Libraries](#libraries) · [Monero
 **In code:** `PaymentAlerts.kt` (opt-in in Settings, fixed wording, no amount); the Gadgetbridge app forwards it to the watch.
 **Not to be confused with:** a payment approval, which happens only on the phone with PIN or biometrics.
 
+### Watch receiving QR (decide later)
+**Context:** Watch, security
+**Means:** a possible future feature: the watch shows one dedicated "Watch" subaddress as a QR code. Postponed by the owner (22 November 2026); the watch stays alerts only. Reopen when in-person receiving without the phone becomes a real need. Costs noted then: a C++ watch app for PineTime, or a Google Play services dependency for Samsung; a lost or tampered watch exposes or swaps that one address.
+**In code:** not in code.
+
 ### Gadgetbridge
 **Context:** Watch
 **Means:** a free, open-source Android app that connects to the PineTime and forwards chosen phone notifications to it. VoidKey never talks to the watch itself (owner decision).
