@@ -20,7 +20,13 @@ Sections: [Watch](#watch) · [Rust](#rust) · [Libraries](#libraries) · [Monero
 ### Watch alert
 **Context:** Watch, security
 **Means:** a short message the watch shows when a payment is received or confirmed. It is the only thing the wallet sends to a watch (owner decision): no keys, addresses, balances, node details or payment approval.
+**In code:** an Android notification from VoidKey; the Gadgetbridge app forwards it to the watch.
 **Not to be confused with:** a payment approval, which happens only on the phone with PIN or biometrics.
+
+### Gadgetbridge
+**Context:** Watch
+**Means:** a free, open-source Android app that connects to the PineTime and forwards chosen phone notifications to it. VoidKey never talks to the watch itself (owner decision).
+**In code:** not in code; a separate app the user installs.
 
 ---
 
