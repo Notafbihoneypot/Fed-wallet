@@ -17,6 +17,7 @@
 - Nostr belongs to Fed POS, not this wallet (owner decision). Add no Nostr library, relay connection or Nostr key handling here; `scripts/check.sh` enforces the dependency part.
 - Every push and pull request runs `.github/workflows/checks.yml` (scripts/check.sh and the Android unit tests); the unsigned release build runs only after it passes (owner decision). Never skip, disable or loosen a check to make a release.
 - Strategic budget (owner decision): every release includes at least one structural improvement, about 20% of its effort, alongside features. Keep each such change small and behaviour-preserving, in its own commit, and name it in the CHANGELOG. Use the long-term-structure skill to choose it.
+- Watch support (owner decision, branch `claude/pinetime-watch`): a PineTime/InfiniTime watch receives payment alerts only. Never send keys, seeds, addresses, balances, node details or payment approval to a watch.
 - Keep unsupported wallet operations visibly unavailable. Do not create fake balances or market this foundation as money-capable.
 - Save created setup drafts encrypted before displaying keys; pausing/backgrounding must keep durable progress and preserve unfinished backup verification. Never store plaintext setup in preferences or saved state.
 - Keep both Resume setup and explicit Discard setup. Discard requires a separate confirmation and device authentication, targets the exact unfinished draft and must never delete a completed wallet, node settings or copied clipboard text.

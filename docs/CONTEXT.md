@@ -6,7 +6,21 @@ Each entry gives: **Context** (which part of the project it belongs to), **Means
 
 How to change it: edit an entry when its meaning changes, and say so in the commit message. Add a term when two people (or a person and the code) used one word two ways. The `long-term-structure` skill adds terms as plans are discussed.
 
-Sections: [Rust](#rust) · [Libraries](#libraries) · [Monero and monero-oxide](#monero-and-monero-oxide) · [Android](#android) · [Security](#security) · [Speed](#speed) · [Decision making](#decision-making) · [Critical thinking](#critical-thinking) · [Nostr](#nostr) · [Server design](#server-design) · [Decentralized](#decentralized) · [Memory](#memory)
+Sections: [Watch](#watch) · [Rust](#rust) · [Libraries](#libraries) · [Monero and monero-oxide](#monero-and-monero-oxide) · [Android](#android) · [Security](#security) · [Speed](#speed) · [Decision making](#decision-making) · [Critical thinking](#critical-thinking) · [Nostr](#nostr) · [Server design](#server-design) · [Decentralized](#decentralized) · [Memory](#memory)
+
+---
+
+## Watch
+
+### PineTime / InfiniTime
+**Context:** Watch
+**Means:** the **PineTime** is Pine64's open-source smartwatch; **InfiniTime** is the open-source software it usually runs. It talks to the phone over Bluetooth.
+**In code:** not yet in code; work happens on branch `claude/pinetime-watch`.
+
+### Watch alert
+**Context:** Watch, security
+**Means:** a short message the watch shows when a payment is received or confirmed. It is the only thing the wallet sends to a watch (owner decision): no keys, addresses, balances, node details or payment approval.
+**Not to be confused with:** a payment approval, which happens only on the phone with PIN or biometrics.
 
 ---
 
