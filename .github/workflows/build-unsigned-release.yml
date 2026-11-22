@@ -17,9 +17,17 @@ jobs:
     # No release build unless every test and lint passed.
     needs: checks
     runs-on: ubuntu-24.04
+    outputs:
+      version: ${{ steps.version.outputs.version }}
     timeout-minutes: 180
     steps:
       - uses: actions/checkout@v4
+      - name: Read app version
+        id: version
+        run: |
+          version=$(sed -n 's/^ *versionName = "\(.*\)"$/\1/p' android/app/build.gradle.kts)
+          [ -n "$version" ] || { echo 'versionName not found' >&2; exit 1; }
+          echo "version=$version" >> "$GITHUB_OUTPUT"
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -57,9 +65,45 @@ jobs:
       - name: Downloadable unsigned release APK
         uses: actions/upload-artifact@v4
         with:
-          name: independent-wallet-v0.11.11-UNSIGNED-release
+          name: voidkey-${{ steps.version.outputs.version }}-UNSIGNED
           if-no-files-found: error
           retention-days: 14
           path: |
             android/app/build/outputs/apk/release/app-release-unsigned.apk
             independent-wallet-unsigned.sha256
+
+  # Manual runs also publish the unsigned APK as a GitHub pre-release, a plain
+  # download page. Only this small job can write to the repository: it runs
+  # no third-party actions and no build tools, and never sees a signing key.
+  publish-prerelease:
+    name: Publish unsigned pre-release
+    if: github.event_name == 'workflow_dispatch'
+    needs: unsigned-release
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: voidkey-${{ needs.unsigned-release.outputs.version }}-UNSIGNED
+      - name: Create or update the pre-release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.unsigned-release.outputs.version }}
+        run: |
+          set -euo pipefail
+          tag="v${VERSION}-unsigned"
+          apk="voidkey-${VERSION}-UNSIGNED.apk"
+          mv android/app/build/outputs/apk/release/app-release-unsigned.apk "$apk"
+          hash=$(sha256sum "$apk" | cut -d' ' -f1)
+          echo "$hash  $apk" > "$apk.sha256"
+          notes="UNSIGNED test build ${VERSION} from ${GITHUB_REF_NAME} at ${GITHUB_SHA}. It cannot be installed until you sign it with your own key. Developer preview: not for real funds.
+
+          APK SHA-256: ${hash}"
+          if gh release view "$tag" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$tag" "$apk" "$apk.sha256" --clobber -R "$GITHUB_REPOSITORY"
+            gh release edit "$tag" --notes "$notes" -R "$GITHUB_REPOSITORY"
+          else
+            gh release create "$tag" "$apk" "$apk.sha256" --prerelease --target "$GITHUB_SHA" \
+              --title "VoidKey ${VERSION} (UNSIGNED)" --notes "$notes" -R "$GITHUB_REPOSITORY"
+          fi
