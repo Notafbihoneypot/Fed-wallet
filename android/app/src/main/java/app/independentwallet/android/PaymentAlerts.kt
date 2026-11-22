@@ -10,8 +10,8 @@ import app.independentwallet.bindings.WalletSyncStatus
 
 /**
  * Watch alerts (owner decisions): fixed wording only, never an amount, address,
- * transaction ID or balance. Gadgetbridge forwards them to a PineTime; this app
- * has no Bluetooth code.
+ * transaction ID or balance. The watch's companion app forwards them (Gadgetbridge
+ * for PineTime, Galaxy Wearable for Samsung); this app has no Bluetooth code.
  */
 internal enum class PaymentAlert(val title: String, val id: Int) {
     Received("Payment received", 7101),

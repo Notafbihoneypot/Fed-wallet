@@ -114,5 +114,5 @@ import app.independentwallet.bindings.KeyWalletMode
         Switch(enabled,{enabled=it;vm.setPaymentAlerts(it)})
     }
     Text("Alerts say only \"Payment received\" or \"Payment confirmed\", never an amount or address, and stay off the lock screen. They arrive only while the wallet is syncing. "+
-        "To see them on a PineTime watch, let Gadgetbridge forward VoidKey notifications.",style=MaterialTheme.typography.bodySmall)
+        "To see them on a watch, allow VoidKey notifications in Gadgetbridge (PineTime) or Galaxy Wearable (Samsung).",style=MaterialTheme.typography.bodySmall)
 }
