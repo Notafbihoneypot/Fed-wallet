@@ -7,6 +7,7 @@ Host-tested (Kotlin compile, Android unit tests). Not yet run on a phone or a wa
 - Settings → **Payment alerts** (off by default) posts "Payment received" when a new incoming payment appears after the wallet has caught up, and "Payment confirmed" when your pending payment enters a block. No amount, address or transaction ID; hidden from the lock screen.
 - To see them on a watch, allow VoidKey notifications in Gadgetbridge (PineTime) or Galaxy Wearable (Samsung Galaxy Watch). VoidKey has no Bluetooth permission, watch app or Google Play services dependency. Not yet tried on either watch.
 - Alerts arrive only while the wallet is syncing (open and unlocked, or opt-in background sync). Payments found during a first sync or rescan never alert.
+- If Arti loses access to the Tor network while opening a node connection, VoidKey reports `NET_TOR_ACCESS` instead of asking the user to check the node address. The app still never falls back to Direct.
 
 ## 0.11.13 preview candidate: payment and unlock screen fixes
 

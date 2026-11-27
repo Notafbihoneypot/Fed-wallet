@@ -1,5 +1,5 @@
 //! Explicit direct or Tor transport. No redirects, compression or route fallback.
-use arti_client::{config::TorClientConfigBuilder, TorClient};
+use arti_client::{config::TorClientConfigBuilder, HasKind, TorClient};
 use bytes::Bytes;
 use http_body_util::{BodyExt, Full};
 use hyper::{client::conn::http1, Request};
@@ -160,7 +160,7 @@ impl NodeTransport {
                 let stream = tor
                     .connect((host.as_str(), port))
                     .await
-                    .map_err(|_| NodeFailure::TorNode.interface())?
+                    .map_err(|error| NodeFailure::tor_stream(error.kind()).interface())?
                     .compat();
                 self.authenticate(stream, host).await
             }
@@ -372,6 +372,17 @@ mod tests {
     }
 
     #[test]
+    fn tor_stream_access_failure_is_not_reported_as_a_node_failure() {
+        for (kind, code) in [
+            (arti_client::ErrorKind::TorAccessFailed, "[NET_TOR_ACCESS]"),
+            (arti_client::ErrorKind::RemoteHostNotFound, "[NET_TOR_NODE]"),
+        ] {
+            let error = crate::EngineError::node_error(NodeFailure::tor_stream(kind).interface());
+            assert!(error.to_string().ends_with(code));
+        }
+    }
+
+    #[test]
     fn transport_diagnostics_are_closed_and_do_not_echo_untrusted_text() {
         for failure in [
             NodeFailure::Address,
@@ -382,6 +393,7 @@ mod tests {
             NodeFailure::Timeout,
             NodeFailure::Tls,
             NodeFailure::TorStart,
+            NodeFailure::TorAccess,
             NodeFailure::TorNode,
             NodeFailure::Http,
             NodeFailure::Status(401),

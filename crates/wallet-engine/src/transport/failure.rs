@@ -23,6 +23,8 @@ pub enum NodeFailure {
         "Tor could not start. Check your connection and whether Tor is blocked. [NET_TOR_START]"
     )]
     TorStart,
+    #[error("VoidKey could not reach the Tor network. Check your connection or whether Tor is blocked, then retry. Direct fallback is disabled. [NET_TOR_ACCESS]")]
+    TorAccess,
     #[error("Tor could not reach this node. Check its address; direct fallback is disabled. [NET_TOR_NODE]")]
     TorNode,
     #[error("The node closed the connection or returned an invalid HTTP response. Check its RPC port. [NET_HTTP]")]
@@ -56,6 +58,7 @@ impl NodeFailure {
             Self::Timeout,
             Self::Tls,
             Self::TorStart,
+            Self::TorAccess,
             Self::TorNode,
             Self::Http,
             Self::Encoding,
@@ -75,6 +78,13 @@ impl NodeFailure {
             .ok()?;
         let failure = Self::Status(code);
         ((100..600).contains(&code) && *message == failure.to_string()).then_some(failure)
+    }
+
+    pub(super) fn tor_stream(kind: arti_client::ErrorKind) -> Self {
+        match kind {
+            arti_client::ErrorKind::TorAccessFailed => Self::TorAccess,
+            _ => Self::TorNode,
+        }
     }
 
     pub(super) fn socket(error: &std::io::Error) -> Self {
