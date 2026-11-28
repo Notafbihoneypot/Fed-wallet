@@ -72,11 +72,12 @@ jobs:
             android/app/build/outputs/apk/release/app-release-unsigned.apk
             independent-wallet-unsigned.sha256
 
-  # Manual runs also publish the unsigned APK as a GitHub pre-release, a plain
-  # download page. Only this small job can write to the repository: it runs
+  # Manual runs also put the unsigned APK in a private draft release, visible
+  # only to repository maintainers: users must never see an uninstallable file.
+  # The owner signs it and publishes the signed APK. Only this small job can write to the repository: it runs
   # no third-party actions and no build tools, and never sees a signing key.
   publish-prerelease:
-    name: Publish unsigned pre-release
+    name: Publish unsigned draft release
     if: github.event_name == 'workflow_dispatch'
     needs: unsigned-release
     runs-on: ubuntu-24.04
@@ -97,13 +98,13 @@ jobs:
           mv android/app/build/outputs/apk/release/app-release-unsigned.apk "$apk"
           hash=$(sha256sum "$apk" | cut -d' ' -f1)
           echo "$hash  $apk" > "$apk.sha256"
-          notes="UNSIGNED test build ${VERSION} from ${GITHUB_REF_NAME} at ${GITHUB_SHA}. It cannot be installed until you sign it with your own key. Developer preview: not for real funds.
+          notes="UNSIGNED test build ${VERSION} from ${GITHUB_REF_NAME} at ${GITHUB_SHA}. It cannot be installed until you sign it with your own key. Draft: only maintainers can see it; attach the signed APK and publish it for users. Developer preview: not for real funds.
 
           APK SHA-256: ${hash}"
           if gh release view "$tag" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             gh release upload "$tag" "$apk" "$apk.sha256" --clobber -R "$GITHUB_REPOSITORY"
             gh release edit "$tag" --notes "$notes" -R "$GITHUB_REPOSITORY"
           else
-            gh release create "$tag" "$apk" "$apk.sha256" --prerelease --target "$GITHUB_SHA" \
+            gh release create "$tag" "$apk" "$apk.sha256" --draft --prerelease --target "$GITHUB_SHA" \
               --title "VoidKey ${VERSION} (UNSIGNED)" --notes "$notes" -R "$GITHUB_REPOSITORY"
           fi
