@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.11.15 watch test build (branch `claude/pinetime-watch`): payment alerts actually fire
+
+Host-tested (Kotlin compile, Android unit tests). Not yet confirmed on a phone or watch.
+
+- Fix: "Payment received" never fired in 0.11.14. It required the wallet to be marked synced just before the payment appeared, but the wallet marks itself not synced whenever it sees a new block, which is exactly when a payment arrives. Alerts now fire for a new incoming payment in any block at or above the height the wallet had reached when last fully synced; payments found while catching up, reopening or rescanning still never alert.
+- The "Payment alerts" notification category is created as soon as the switch is turned on, so it appears in Android's notification settings and in watch companion apps before the first alert.
+- Manual unsigned builds are published as a private draft release instead of a public pre-release, so users never see a file they cannot install.
+
 ## 0.11.14 watch test build (branch `claude/pinetime-watch`): payment alerts for phone, PineTime and Samsung watches
 
 Host-tested (Kotlin compile, Android unit tests). Not yet run on a phone or a watch.

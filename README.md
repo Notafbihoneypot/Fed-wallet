@@ -1,4 +1,4 @@
-# VoidKey — Independent Android Monero Wallet, Preview 2, 0.11.14
+# VoidKey — Independent Android Monero Wallet, Preview 2, 0.11.15
 
 An independent native Android wallet with Kotlin/Compose and a Rust application core. This developer build combines local synchronization/software payments with explicit direct and embedded Tor routes with an original dark, green-and-amber retro interface and explicit seed-backup controls.
 
@@ -8,7 +8,7 @@ Setup has two choices: **Software wallet** and **Hardware wallet (Keystone)**. S
 
 ## Build status
 
-Version **0.11.14-preview2-candidate**, Android code **32**, is shown on the phone as **VoidKey** and keeps package `app.independentwallet.android.syncpreview2`. Its owner-authorized replacement signing certificate is `ec1a8a280afe3d0185b6e5a175f226bf7d1f9f93424c020b474d0fa2d7865c15`. It cannot update an installation signed by the lost prior Preview 2 key: uninstalling that build deletes its local app data, then this APK installs fresh. The owner confirmed the prior wallets were disposable tests.
+Version **0.11.15-preview2-candidate**, Android code **33**, is shown on the phone as **VoidKey** and keeps package `app.independentwallet.android.syncpreview2`. Its owner-authorized replacement signing certificate is `ec1a8a280afe3d0185b6e5a175f226bf7d1f9f93424c020b474d0fa2d7865c15`. It cannot update an installation signed by the lost prior Preview 2 key: uninstalling that build deletes its local app data, then this APK installs fresh. The owner confirmed the prior wallets were disposable tests.
 
 0.11.11 renames the app, speeds up sync and fixes the audit findings listed in [CHANGELOG](CHANGELOG.md). Version 0.11.7 fixed a large, one-request decoy-data download that could time out while preparing a Tor payment. It downloads bounded parts, saves completed parts encrypted for later attempts, checks their selected node/route and chain snapshot, and shows live preparation stages. It also preserves the original network error from a decoy lookup. See [Tor send update](docs/TOR_SEND_0_11_7.md). The earlier subaddress, scanner and installer hardening changes remain.
 

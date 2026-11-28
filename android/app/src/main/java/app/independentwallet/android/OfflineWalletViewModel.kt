@@ -132,14 +132,15 @@ class OfflineWalletViewModel(application: Application) : AndroidViewModel(applic
     init {
         // Compare successive snapshots of one wallet; a lock or wallet switch resets the comparison.
         viewModelScope.launch {
-            var previous: Pair<WalletSlot, WalletSyncStatus>? = null
+            val tracker = PaymentAlertTracker()
+            var slot: WalletSlot? = null
+            var last: WalletSyncStatus? = null
             state.collect { ui ->
-                val next = ui.online.status?.let { ui.walletSlot to it }
-                if (next?.second !== previous?.second) {
-                    val before = previous?.takeIf { it.first == next?.first }?.second
-                    paymentAlerts.post(paymentAlerts(before, next?.second))
-                    previous = next
-                }
+                val status = ui.online.status
+                if (status === last && ui.walletSlot == slot) return@collect
+                if (ui.walletSlot != slot) tracker.reset()
+                slot = ui.walletSlot; last = status
+                paymentAlerts.post(tracker.next(status))
             }
         }
         viewModelScope.launch {
